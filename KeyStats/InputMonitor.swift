@@ -121,14 +121,14 @@ class InputMonitor {
             }
             
         case .leftMouseDown:
-            if isPrimaryButtonRight() {
+            if shouldSwapMouseButtons(for: event) {
                 statsManager.incrementRightClicks(appIdentity: appIdentityProvider())
             } else {
                 statsManager.incrementLeftClicks(appIdentity: appIdentityProvider())
             }
             
         case .rightMouseDown:
-            if isPrimaryButtonRight() {
+            if shouldSwapMouseButtons(for: event) {
                 statsManager.incrementLeftClicks(appIdentity: appIdentityProvider())
             } else {
                 statsManager.incrementRightClicks(appIdentity: appIdentityProvider())
@@ -167,6 +167,13 @@ class InputMonitor {
             return value.boolValue
         }
         return false
+    }
+
+    private func shouldSwapMouseButtons(for event: CGEvent) -> Bool {
+        guard isPrimaryButtonRight() else { return false }
+        // "Primary mouse button" applies to mice; trackpad primary click remains left.
+        guard let nsEvent = NSEvent(cgEvent: event) else { return false }
+        return nsEvent.pointingDeviceType == .mouse
     }
 
     private func modifierNames(for flags: CGEventFlags, keyCode: Int) -> [String] {
