@@ -173,7 +173,14 @@ class InputMonitor {
         guard isPrimaryButtonRight() else { return false }
         // "Primary mouse button" applies to mice; trackpad primary click remains left.
         guard let nsEvent = NSEvent(cgEvent: event) else { return false }
-        return nsEvent.pointingDeviceType == .mouse
+        switch nsEvent.subtype {
+        case .mouseEvent:
+            return true
+        case .tabletPoint, .tabletProximity, .touch:
+            return false
+        default:
+            return true
+        }
     }
 
     private func modifierNames(for flags: CGEventFlags, keyCode: Int) -> [String] {
