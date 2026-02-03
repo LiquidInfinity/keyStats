@@ -1,3 +1,5 @@
+[![Awesome](https://awesome.re/mentioned-badge.svg )](https://github.com/jaywcjlove/awesome-mac#menu-bar-tools)
+
 [English](./README_EN.md) | 简体中文
 
 
