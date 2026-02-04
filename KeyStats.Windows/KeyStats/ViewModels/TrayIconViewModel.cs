@@ -17,6 +17,7 @@ namespace KeyStats.ViewModels;
 
 public class TrayIconViewModel : ViewModelBase
 {
+    private readonly StatsManager _statsManager = StatsManager.Instance;
     private DrawingIcon? _trayIcon;
     private string _tooltipText = "KeyStats";
     private StatsPopupWindow? _popupWindow;
@@ -44,6 +45,8 @@ public class TrayIconViewModel : ViewModelBase
         QuitCommand = new RelayCommand(Quit);
 
         LoadTrayIconOnce();
+        _statsManager.StatsUpdateRequested += OnStatsUpdateRequested;
+        UpdateTooltipText();
     }
 
     private void LoadTrayIconOnce()
@@ -163,6 +166,26 @@ public class TrayIconViewModel : ViewModelBase
         }
     }
 
+    private void OnStatsUpdateRequested()
+    {
+        var dispatcher = Application.Current?.Dispatcher;
+        if (dispatcher == null || dispatcher.CheckAccess())
+        {
+            UpdateTooltipText();
+            return;
+        }
+
+        dispatcher.BeginInvoke(new Action(UpdateTooltipText));
+    }
+
+    private void UpdateTooltipText()
+    {
+        var stats = _statsManager.CurrentStats;
+        var keys = _statsManager.FormatNumber(stats.KeyPresses);
+        var clicks = _statsManager.FormatNumber(stats.TotalClicks);
+        TooltipText = $"鼠标: {clicks}\n键盘: {keys}";
+    }
+
     public void ShowStats()
     {
         ShowStats(null);
@@ -204,6 +227,7 @@ public class TrayIconViewModel : ViewModelBase
 
     public void Cleanup()
     {
+        _statsManager.StatsUpdateRequested -= OnStatsUpdateRequested;
         _trayIcon?.Dispose();
         _trayIcon = null;
     }
