@@ -333,8 +333,6 @@ public class StatsManager : IDisposable
             {
                 var json = File.ReadAllText(_historyFilePath);
                 var history = JsonSerializer.Deserialize<Dictionary<string, DailyStats>>(json) ?? new();
-                // Clean up old entries (older than 30 days)
-                PruneOldHistory(history);
                 return history;
             }
         }
@@ -343,24 +341,6 @@ public class StatsManager : IDisposable
             System.Diagnostics.Debug.WriteLine($"Error loading history: {ex.Message}");
         }
         return new();
-    }
-
-    private void PruneOldHistory(Dictionary<string, DailyStats> history)
-    {
-        var cutoffDate = DateTime.Today.AddDays(-30);
-        var keysToRemove = history.Keys
-            .Where(key => DateTime.TryParse(key, out var date) && date < cutoffDate)
-            .ToList();
-
-        foreach (var key in keysToRemove)
-        {
-            history.Remove(key);
-        }
-
-        if (keysToRemove.Count > 0)
-        {
-            System.Diagnostics.Debug.WriteLine($"Pruned {keysToRemove.Count} old history entries");
-        }
     }
 
     public void SaveSettings()
@@ -498,11 +478,9 @@ public class StatsManager : IDisposable
         {
             ResetStats(now);
         }
-        // Also prune old history entries during midnight reset
         Dictionary<string, DailyStats> historySnapshot;
         lock (_lock)
         {
-            PruneOldHistory(History);
             historySnapshot = CloneHistorySnapshot(History);
         }
         SaveHistorySnapshot(historySnapshot);
@@ -619,6 +597,105 @@ public class StatsManager : IDisposable
                 .Take(limit)
                 .Select(a => new AppStats(a))
                 .ToList();
+        }
+    }
+
+    #endregion
+
+    #region App Stats Summary
+
+    public enum AppStatsRange { Today, Week, Month, All }
+
+    public List<AppStats> GetAppStatsSummary(AppStatsRange range)
+    {
+        lock (_lock)
+        {
+            var totals = new Dictionary<string, AppStats>(StringComparer.OrdinalIgnoreCase);
+            var dates = GetAppStatsDates(range);
+            foreach (var date in dates)
+            {
+                var daily = GetDailyStats(date);
+                MergeAppStats(daily, totals);
+            }
+
+            return totals.Values
+                .Select(a => new AppStats(a))
+                .ToList();
+        }
+    }
+
+    private List<DateTime> GetAppStatsDates(AppStatsRange range)
+    {
+        var today = DateTime.Today;
+        var dates = new List<DateTime>();
+
+        if (range == AppStatsRange.All)
+        {
+            foreach (var key in History.Keys)
+            {
+                if (DateTime.TryParse(key, out var parsed))
+                {
+                    dates.Add(parsed.Date);
+                }
+            }
+            if (!dates.Contains(today))
+            {
+                dates.Add(today);
+            }
+            return dates.Distinct().OrderBy(d => d).ToList();
+        }
+
+        var startDate = range switch
+        {
+            AppStatsRange.Today => today,
+            AppStatsRange.Week => today.AddDays(-6),
+            AppStatsRange.Month => today.AddDays(-29),
+            _ => today
+        };
+
+        for (var date = startDate.Date; date <= today; date = date.AddDays(1))
+        {
+            dates.Add(date);
+        }
+
+        return dates;
+    }
+
+    private DailyStats GetDailyStats(DateTime date)
+    {
+        if (date.Date == CurrentStats.Date.Date)
+        {
+            return CurrentStats;
+        }
+
+        var key = date.ToString("yyyy-MM-dd");
+        return History.TryGetValue(key, out var stats) ? stats : new DailyStats(date);
+    }
+
+    private static void MergeAppStats(DailyStats daily, Dictionary<string, AppStats> totals)
+    {
+        if (daily.AppStats.Count == 0) return;
+
+        foreach (var kvp in daily.AppStats)
+        {
+            var appName = kvp.Key;
+            var source = kvp.Value;
+
+            if (!totals.TryGetValue(appName, out var total))
+            {
+                total = new AppStats(appName, source.DisplayName);
+                totals[appName] = total;
+            }
+
+            if (!string.IsNullOrEmpty(source.DisplayName))
+            {
+                total.DisplayName = source.DisplayName;
+            }
+
+            total.KeyPresses += source.KeyPresses;
+            total.LeftClicks += source.LeftClicks;
+            total.RightClicks += source.RightClicks;
+            total.ScrollDistance += source.ScrollDistance;
         }
     }
 

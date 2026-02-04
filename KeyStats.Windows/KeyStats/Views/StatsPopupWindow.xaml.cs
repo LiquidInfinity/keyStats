@@ -138,6 +138,12 @@ public partial class StatsPopupWindow : Window
             SlideOut();
         }
     }
+
+    private void OpenAppStats_Click(object sender, RoutedEventArgs e)
+    {
+        App.CurrentApp?.TrackClick("open_app_stats");
+        App.CurrentApp?.ShowAppStatsWindow();
+    }
     
     private void SlideOut()
     {

@@ -102,6 +102,9 @@ public sealed class ThemeManager : IDisposable
         SetBrush(res, "SubtleHoverBrush", "#12000000");
         SetBrush(res, "ChartLineBrush", "#0067C0");
         SetBrush(res, "ChartFillBrush", "#200067C0");
+        SetBrush(res, "AppStatsKeysBrush", "#0067C0");
+        SetBrush(res, "AppStatsClicksBrush", "#1E9E4A");
+        SetBrush(res, "AppStatsScrollBrush", "#E27A1A");
         SetBrush(res, "ContextMenuBackgroundBrush", "#F9F9F9");
         SetBrush(res, "MenuItemHoverBrush", "#0A000000");
         SetBrush(res, "ChartAreaBrush", "#15808080");
@@ -133,6 +136,9 @@ public sealed class ThemeManager : IDisposable
         SetBrush(res, "SubtleHoverBrush", "#15FFFFFF");
         SetBrush(res, "ChartLineBrush", "#0078D4");
         SetBrush(res, "ChartFillBrush", "#200078D4");
+        SetBrush(res, "AppStatsKeysBrush", "#2AA3FF");
+        SetBrush(res, "AppStatsClicksBrush", "#49C779");
+        SetBrush(res, "AppStatsScrollBrush", "#FFB24A");
         SetBrush(res, "ContextMenuBackgroundBrush", "#2C2C2C");
         SetBrush(res, "MenuItemHoverBrush", "#15FFFFFF");
         SetBrush(res, "ChartAreaBrush", "#20808080");

@@ -11,6 +11,7 @@
             <helpers:IntToBoolConverter x:Key="IntToBoolConverter"/>
             <helpers:BoolToVisibilityConverter x:Key="BoolToVisibilityConverter"/>
             <helpers:InverseBoolConverter x:Key="InverseBoolConverter"/>
+            <helpers:BarWidthConverter x:Key="BarWidthConverter"/>
 
             <!-- Windows 11 Colors (light defaults, overridden at runtime by ThemeManager) -->
             <Color x:Key="AccentColor">#0067C0</Color>
@@ -36,6 +37,9 @@
             <SolidColorBrush x:Key="SubtleHoverBrush" Color="{StaticResource SubtleHoverColor}"/>
             <SolidColorBrush x:Key="ChartLineBrush" Color="{StaticResource AccentColor}"/>
             <SolidColorBrush x:Key="ChartFillBrush" Color="#200067C0"/>
+            <SolidColorBrush x:Key="AppStatsKeysBrush" Color="#0067C0"/>
+            <SolidColorBrush x:Key="AppStatsClicksBrush" Color="#1E9E4A"/>
+            <SolidColorBrush x:Key="AppStatsScrollBrush" Color="#E27A1A"/>
 
             <!-- Theme-aware brushes for context menu (overridden by ThemeManager) -->
             <SolidColorBrush x:Key="ContextMenuBackgroundBrush" Color="#F9F9F9"/>
@@ -98,6 +102,58 @@
                                     <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}"/>
                                 </Trigger>
                             </ControlTemplate.Triggers>
+                        </ControlTemplate>
+                    </Setter.Value>
+                </Setter>
+            </Style>
+
+            <Style x:Key="GhostButton" TargetType="Button">
+                <Setter Property="Background" Value="{DynamicResource SubtleFillBrush}"/>
+                <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}"/>
+                <Setter Property="BorderBrush" Value="{DynamicResource DividerBrush}"/>
+                <Setter Property="BorderThickness" Value="1"/>
+                <Setter Property="Padding" Value="10,4"/>
+                <Setter Property="FontSize" Value="11"/>
+                <Setter Property="Cursor" Value="Hand"/>
+                <Setter Property="Template">
+                    <Setter.Value>
+                        <ControlTemplate TargetType="Button">
+                            <Border x:Name="border"
+                                    Background="{TemplateBinding Background}"
+                                    BorderBrush="{TemplateBinding BorderBrush}"
+                                    BorderThickness="{TemplateBinding BorderThickness}"
+                                    CornerRadius="5">
+                                <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                            </Border>
+                            <ControlTemplate.Triggers>
+                                <Trigger Property="IsMouseOver" Value="True">
+                                    <Setter TargetName="border" Property="Background" Value="{DynamicResource SubtleHoverBrush}"/>
+                                </Trigger>
+                                <Trigger Property="IsPressed" Value="True">
+                                    <Setter TargetName="border" Property="Opacity" Value="0.8"/>
+                                </Trigger>
+                                <Trigger Property="IsEnabled" Value="False">
+                                    <Setter TargetName="border" Property="Opacity" Value="0.5"/>
+                                </Trigger>
+                            </ControlTemplate.Triggers>
+                        </ControlTemplate>
+                    </Setter.Value>
+                </Setter>
+            </Style>
+
+            <Style x:Key="AppStatsHeaderButton" TargetType="Button">
+                <Setter Property="Background" Value="Transparent"/>
+                <Setter Property="Foreground" Value="{DynamicResource TextSecondaryBrush}"/>
+                <Setter Property="BorderThickness" Value="0"/>
+                <Setter Property="Padding" Value="4,2"/>
+                <Setter Property="FontSize" Value="12"/>
+                <Setter Property="FontWeight" Value="SemiBold"/>
+                <Setter Property="Cursor" Value="Hand"/>
+                <Setter Property="HorizontalAlignment" Value="Center"/>
+                <Setter Property="Template">
+                    <Setter.Value>
+                        <ControlTemplate TargetType="Button">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
                         </ControlTemplate>
                     </Setter.Value>
                 </Setter>

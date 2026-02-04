@@ -43,7 +43,7 @@
 
 应用数据存储在 `%LOCALAPPDATA%\KeyStats\` 目录：
 - `daily_stats.json` - 当日统计数据
-- `history.json` - 历史数据（保留 30 天）
+- `history.json` - 历史数据（全量保留）
 - `settings.json` - 用户设置
 
 卸载应用时，只需删除程序文件夹，数据会保留在用户数据目录中。

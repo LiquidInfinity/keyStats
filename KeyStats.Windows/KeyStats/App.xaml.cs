@@ -23,6 +23,7 @@ public partial class App : System.Windows.Application
     private TaskbarIcon? _trayIcon;
     private TrayIconViewModel? _trayIconViewModel;
     private NotificationSettingsWindow? _settingsWindow;
+    private AppStatsWindow? _appStatsWindow;
     private System.Threading.Mutex? _singleInstanceMutex;
     private string? _appVersion;
     private IPostHogAnalytics? _postHogClient;
@@ -217,6 +218,20 @@ public partial class App : System.Windows.Application
         _settingsWindow = new NotificationSettingsWindow();
         _settingsWindow.Closed += (_, _) => _settingsWindow = null;
         _settingsWindow.Show();
+    }
+
+    public void ShowAppStatsWindow()
+    {
+        if (_appStatsWindow != null && _appStatsWindow.IsVisible)
+        {
+            _appStatsWindow.Activate();
+            return;
+        }
+
+        _appStatsWindow = new AppStatsWindow();
+        _appStatsWindow.Closed += (_, _) => _appStatsWindow = null;
+        _appStatsWindow.Show();
+        _appStatsWindow.Activate();
     }
 
     private void ExportData()

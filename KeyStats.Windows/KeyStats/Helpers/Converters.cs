@@ -67,3 +67,22 @@ public class InverseBoolConverter : IValueConverter
         return false;
     }
 }
+
+public class BarWidthConverter : IMultiValueConverter
+{
+    public object Convert(object[] values, Type targetType, object parameter, CultureInfo culture)
+    {
+        if (values.Length < 2) return 0.0;
+        if (values[0] is not double ratio) return 0.0;
+        if (values[1] is not double width) return 0.0;
+        if (double.IsNaN(width) || double.IsInfinity(width)) return 0.0;
+        if (ratio < 0) ratio = 0;
+        if (ratio > 1) ratio = 1;
+        return Math.Max(0, width * ratio);
+    }
+
+    public object[] ConvertBack(object value, Type[] targetTypes, object parameter, CultureInfo culture)
+    {
+        throw new NotSupportedException();
+    }
+}

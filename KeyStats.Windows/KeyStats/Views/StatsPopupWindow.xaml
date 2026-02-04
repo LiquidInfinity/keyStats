@@ -29,8 +29,16 @@
 
         <StackPanel Margin="12">
             <!-- Header -->
-            <TextBlock Text="今日统计" FontSize="14" FontWeight="SemiBold"
-                       Foreground="{DynamicResource TextPrimaryBrush}" Margin="4,0,0,10"/>
+            <Grid Margin="4,0,0,10">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+                <TextBlock Grid.Column="0" Text="今日统计" FontSize="14" FontWeight="SemiBold"
+                           Foreground="{DynamicResource TextPrimaryBrush}" VerticalAlignment="Center"/>
+                <Button Grid.Column="1" Content="按应用统计" Style="{DynamicResource GhostButton}"
+                        Click="OpenAppStats_Click" Margin="8,0,0,0"/>
+            </Grid>
 
             <!-- Stats Cards -->
             <Border Style="{DynamicResource CardBorder}" Margin="0,0,0,6">
