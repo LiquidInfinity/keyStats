@@ -14,7 +14,6 @@ You can use the macOS KeyStats app icon as a source and convert it using tools l
 - ImageMagick: `convert AppIcon.png -resize 256x256 app.ico`
 - Online tools: icoconvert.com or similar
 
-## Dynamic Icon Generation
+## Tray Icon
 
-The tray icon is generated dynamically at runtime by `IconGenerator.cs` in the Helpers folder.
-This allows the icon color to change based on typing speed (APM).
+The tray icon uses a static PNG (`tray-icon.png`) loaded at startup.

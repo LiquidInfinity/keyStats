@@ -22,7 +22,6 @@
 │  - 统计数据管理                                                   │
 │  - 设置管理                                                      │
 │  - 历史记录                                                      │
-│  - APM计算                                                       │
 └─────────────────────────────────────────────────────────────────┘
                               │
         ┌─────────────────────┼─────────────────────┐
@@ -72,21 +71,7 @@ _saveInterval = 2000ms  // 写入延迟
 _statsUpdateDebounceInterval = 300ms  // UI更新防抖
 ```
 
-**APM计算** (动态图标颜色):
-```csharp
-_inputRateWindowSeconds = 3.0      // 滑动窗口
-_inputRateBucketInterval = 500ms   // 桶间隔
-_inputRateApmThresholds = [0, 80, 160, 240]  // APM阈值
-
-// 颜色映射:
-// < 80 APM: 无色
-// 80-160 APM: 浅绿 → 绿
-// 160-240 APM: 黄 → 红
-// >= 240 APM: 红
-```
-
 **事件**:
-- `TrayUpdateRequested` - 托盘图标/tooltip需要更新
 - `StatsUpdateRequested` - 统计数据变化，UI需要刷新
 
 **午夜重置**:
@@ -145,13 +130,9 @@ const double MetersPerPixel = 0.000264583;  // 96 DPI下的换算
 ### AppSettings (`Models/AppSettings.cs`)
 ```csharp
 public class AppSettings {
-    bool ShowKeyPressesInTray = true;
-    bool ShowMouseClicksInTray = true;
     bool NotificationsEnabled = false;
     int KeyPressNotifyThreshold = 1000;
     int ClickNotifyThreshold = 1000;
-    bool EnableDynamicIconColor = false;
-    DynamicIconColorStyle DynamicIconColorStyle = Icon;  // Icon | Dot
     bool LaunchAtStartup = false;
 }
 ```
@@ -161,7 +142,6 @@ public class AppSettings {
 ### TrayIconViewModel
 - 绑定属性: `TrayIcon` (ImageSource), `TooltipText`
 - 命令: `TogglePopupCommand`, `ShowStatsCommand`, `ShowSettingsCommand`, `QuitCommand`
-- 订阅: `StatsManager.TrayUpdateRequested`
 
 ### StatsPopupViewModel
 - 绑定属性: `KeyPresses`, `LeftClicks`, `RightClicks`, `MouseDistance`, `ScrollDistance`
@@ -245,22 +225,11 @@ if (IsKeyDown(VK_LWIN) || IsKeyDown(VK_RWIN)) modifiers.Add("Win");
 
 **输出格式**: `"Ctrl+Shift+A"`, `"Alt+Tab"`, `"Win+D"`
 
-## 图标生成 (IconGenerator.cs)
+## 托盘图标
 
-**动态托盘图标**:
+**托盘图标**:
 ```csharp
-// 16x16 位图，绘制键盘轮廓
-using var bitmap = new Bitmap(16, 16, PixelFormat.Format32bppArgb);
-// 根据APM设置颜色
-var color = GetRateColor(ratePerSecond);
-```
-
-**APM颜色算法**:
-```csharp
-apm < 80: 无色 (null)
-80-160: 浅绿 → 绿 (线性插值)
-160-240: 黄 → 红 (线性插值)
->= 240: 红
+// 启动时加载静态 tray-icon.png
 ```
 
 ## 窗口定位 (StatsPopupWindow.xaml.cs)
@@ -288,7 +257,7 @@ InverseBoolConverter    // bool取反
 
 ## 线程安全
 
-- `StatsManager`: 使用 `lock(_lock)` 保护 `CurrentStats` 和 `_inputRateBuckets`
+- `StatsManager`: 使用 `lock(_lock)` 保护 `CurrentStats`
 - UI更新: 通过 `Application.Current.Dispatcher.Invoke()` 回到UI线程
 - Timer回调: 都在线程池线程，需要同步
 

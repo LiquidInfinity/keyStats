@@ -183,7 +183,7 @@ public class StatsPopupViewModel : ViewModelBase
         KeyPresses = stats.KeyPresses.ToString("N0");
         LeftClicks = stats.LeftClicks.ToString("N0");
         RightClicks = stats.RightClicks.ToString("N0");
-        MouseDistance = stats.FormattedMouseDistance;
+        MouseDistance = manager.FormatMouseDistance(stats.MouseDistance);
         ScrollDistance = stats.FormattedScrollDistance;
     }
 

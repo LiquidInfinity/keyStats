@@ -75,7 +75,15 @@
             </Border>
 
             <!-- App Breakdown -->
-            <TextBlock Text="活跃应用" Style="{DynamicResource SectionTitle}" Margin="4,8,0,6"/>
+            <Grid Margin="4,8,0,6">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+                <TextBlock Grid.Column="0" Text="活跃应用" Style="{DynamicResource SectionTitle}" Margin="0" VerticalAlignment="Center"/>
+                <Button Grid.Column="1" Content="应用统计详情" Style="{DynamicResource GhostButton}"
+                        Click="OpenAppStats_Click" Padding="12,5"/>
+            </Grid>
             <Border Style="{DynamicResource CardBorder}" Padding="8,6" Margin="0,0,0,6">
                 <ListBox ItemsSource="{Binding AppStatsItems}"
                          MaxHeight="100"

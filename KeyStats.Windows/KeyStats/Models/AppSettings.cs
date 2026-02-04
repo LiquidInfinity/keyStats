@@ -5,11 +5,7 @@ namespace KeyStats.Models;
 
 public class AppSettings
 {
-    [JsonPropertyName("showKeyPressesInTray")]
-    public bool ShowKeyPressesInTray { get; set; } = false; // 默认只显示键盘图标
-
-    [JsonPropertyName("showMouseClicksInTray")]
-    public bool ShowMouseClicksInTray { get; set; } = false; // 默认只显示键盘图标
+    public const double DefaultMouseMetersPerPixel = 0.000264583;
 
     [JsonPropertyName("notificationsEnabled")]
     public bool NotificationsEnabled { get; set; }
@@ -19,12 +15,6 @@ public class AppSettings
 
     [JsonPropertyName("clickNotifyThreshold")]
     public int ClickNotifyThreshold { get; set; } = 1000;
-
-    [JsonPropertyName("enableDynamicIconColor")]
-    public bool EnableDynamicIconColor { get; set; }
-
-    [JsonPropertyName("dynamicIconColorStyle")]
-    public DynamicIconColorStyle DynamicIconColorStyle { get; set; } = DynamicIconColorStyle.Icon;
 
     [JsonPropertyName("launchAtStartup")]
     public bool LaunchAtStartup { get; set; }
@@ -46,10 +36,10 @@ public class AppSettings
 
     [JsonPropertyName("analyticsInstallTracked")]
     public bool AnalyticsInstallTracked { get; set; }
-}
 
-public enum DynamicIconColorStyle
-{
-    Icon,
-    Dot
+    [JsonPropertyName("mouseMetersPerPixel")]
+    public double MouseMetersPerPixel { get; set; } = DefaultMouseMetersPerPixel;
+
+    [JsonPropertyName("mouseDistanceUnit")]
+    public string MouseDistanceUnit { get; set; } = "auto"; // auto | px
 }

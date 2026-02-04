@@ -1,7 +1,6 @@
 using System;
 using System.Windows;
 using System.Windows.Input;
-using System.Windows.Media;
 using System.Reflection;
 using System.IO;
 using System.Drawing;
@@ -18,6 +17,7 @@ namespace KeyStats.ViewModels;
 
 public class TrayIconViewModel : ViewModelBase
 {
+    private readonly StatsManager _statsManager = StatsManager.Instance;
     private DrawingIcon? _trayIcon;
     private string _tooltipText = "KeyStats";
     private StatsPopupWindow? _popupWindow;
@@ -44,27 +44,14 @@ public class TrayIconViewModel : ViewModelBase
         ShowStatsCommand = new RelayCommand(ShowStats);
         QuitCommand = new RelayCommand(Quit);
 
-        UpdateTrayIcon();
-        UpdateTooltip();
-
-        StatsManager.Instance.TrayUpdateRequested += OnTrayUpdateRequested;
+        LoadTrayIconOnce();
+        _statsManager.StatsUpdateRequested += OnStatsUpdateRequested;
+        UpdateTooltipText();
     }
 
-    private void OnTrayUpdateRequested()
+    private void LoadTrayIconOnce()
     {
-        Application.Current?.Dispatcher.Invoke(() =>
-        {
-            UpdateTrayIcon();
-            UpdateTooltip();
-        });
-    }
-
-    private void UpdateTrayIcon()
-    {
-        // Dispose old icon to prevent memory leak
-        _trayIcon?.Dispose();
-
-        // 使用静态图标文件
+        // 使用静态图标文件（只初始化一次）
         try
         {
             var assembly = Assembly.GetExecutingAssembly();
@@ -116,9 +103,6 @@ public class TrayIconViewModel : ViewModelBase
         {
             Console.WriteLine($"Error loading tray icon from file: {ex.Message}");
         }
-
-        // 如果都失败，使用默认的动态生成图标
-        TrayIcon = IconGenerator.CreateTrayIconKeyboard();
     }
 
     private static int GetSystemTrayIconSize()
@@ -159,11 +143,6 @@ public class TrayIconViewModel : ViewModelBase
         return resized;
     }
 
-    private void UpdateTooltip()
-    {
-        TooltipText = StatsManager.Instance.GetTooltipText();
-    }
-
     private void TogglePopup()
     {
         Console.WriteLine("=== TogglePopup called ===");
@@ -185,6 +164,26 @@ public class TrayIconViewModel : ViewModelBase
         {
             Console.WriteLine($"TogglePopup error: {ex}");
         }
+    }
+
+    private void OnStatsUpdateRequested()
+    {
+        var dispatcher = Application.Current?.Dispatcher;
+        if (dispatcher == null || dispatcher.CheckAccess())
+        {
+            UpdateTooltipText();
+            return;
+        }
+
+        dispatcher.BeginInvoke(new Action(UpdateTooltipText));
+    }
+
+    private void UpdateTooltipText()
+    {
+        var stats = _statsManager.CurrentStats;
+        var keys = _statsManager.FormatNumber(stats.KeyPresses);
+        var clicks = _statsManager.FormatNumber(stats.TotalClicks);
+        TooltipText = $"鼠标: {clicks}\n键盘: {keys}";
     }
 
     public void ShowStats()
@@ -228,6 +227,8 @@ public class TrayIconViewModel : ViewModelBase
 
     public void Cleanup()
     {
-        StatsManager.Instance.TrayUpdateRequested -= OnTrayUpdateRequested;
+        _statsManager.StatsUpdateRequested -= OnStatsUpdateRequested;
+        _trayIcon?.Dispose();
+        _trayIcon = null;
     }
 }

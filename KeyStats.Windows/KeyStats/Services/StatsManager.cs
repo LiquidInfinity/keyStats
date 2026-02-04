@@ -5,10 +5,8 @@ using System.Linq;
 using System.Text;
 using System.Text.Json;
 using System.Timers;
-using KeyStats.Helpers;
 using KeyStats.Models;
 using Timer = System.Timers.Timer;
-using DrawingColor = System.Drawing.Color;
 
 namespace KeyStats.Services;
 
@@ -17,7 +15,7 @@ public class StatsManager : IDisposable
     private static StatsManager? _instance;
     public static StatsManager Instance => _instance ??= new StatsManager();
 
-    private const double MetersPerPixel = 0.000264583;
+    private const double DefaultMetersPerPixel = AppSettings.DefaultMouseMetersPerPixel;
 
     private readonly string _dataFolder;
     private readonly string _statsFilePath;
@@ -27,17 +25,10 @@ public class StatsManager : IDisposable
     private readonly object _lock = new();
     private Timer? _saveTimer;
     private Timer? _midnightTimer;
-    private Timer? _inputRateTimer;
     private Timer? _statsUpdateTimer;
 
     private readonly double _saveInterval = 2000; // 2 seconds
     private readonly double _statsUpdateDebounceInterval = 300; // 0.3 seconds
-    private readonly double _inputRateWindowSeconds = 3.0;
-    private readonly double _inputRateBucketInterval = 500; // 0.5 seconds
-    private readonly double[] _inputRateApmThresholds = { 0, 80, 160, 240 };
-
-    private int[] _inputRateBuckets;
-    private int _inputRateBucketIndex;
     private bool _pendingSave;
     private bool _pendingStatsUpdate;
 
@@ -48,10 +39,6 @@ public class StatsManager : IDisposable
     public AppSettings Settings { get; private set; }
     public Dictionary<string, DailyStats> History { get; private set; } = new();
 
-    public double CurrentInputRatePerSecond { get; private set; }
-    public DrawingColor? CurrentIconTintColor { get; private set; }
-
-    public event Action? TrayUpdateRequested;
     public event Action? StatsUpdateRequested;
 
     private StatsManager()
@@ -65,9 +52,6 @@ public class StatsManager : IDisposable
         _historyFilePath = Path.Combine(_dataFolder, "history.json");
         _settingsFilePath = Path.Combine(_dataFolder, "settings.json");
 
-        var bucketCount = Math.Max(1, (int)(_inputRateWindowSeconds / (_inputRateBucketInterval / 1000.0)));
-        _inputRateBuckets = new int[bucketCount];
-
         Settings = LoadSettings();
         History = LoadHistory();
         CurrentStats = LoadStats() ?? new DailyStats();
@@ -80,13 +64,6 @@ public class StatsManager : IDisposable
 
         UpdateNotificationBaselines();
         SaveStats();
-
-        if (Settings.EnableDynamicIconColor)
-        {
-            ResetInputRateBuckets();
-            StartInputRateTracking();
-            UpdateCurrentInputRate();
-        }
 
         SetupMidnightReset();
         SetupInputMonitor();
@@ -132,8 +109,6 @@ public class StatsManager : IDisposable
             UpdateAppStats(appName, stats => stats.RecordKeyPress());
         }
 
-        RegisterInputEvent();
-        NotifyTrayUpdate();
         NotifyStatsUpdate();
         NotifyKeyPressThresholdIfNeeded();
     }
@@ -147,8 +122,6 @@ public class StatsManager : IDisposable
             UpdateAppStats(appName, stats => stats.RecordLeftClick());
         }
 
-        RegisterInputEvent();
-        NotifyTrayUpdate();
         NotifyStatsUpdate();
         NotifyClickThresholdIfNeeded();
     }
@@ -162,8 +135,6 @@ public class StatsManager : IDisposable
             UpdateAppStats(appName, stats => stats.RecordRightClick());
         }
 
-        RegisterInputEvent();
-        NotifyTrayUpdate();
         NotifyStatsUpdate();
         NotifyClickThresholdIfNeeded();
     }
@@ -191,93 +162,6 @@ public class StatsManager : IDisposable
 
         ScheduleDebouncedStatsUpdate();
         ScheduleSave();
-    }
-
-    private void RegisterInputEvent()
-    {
-        if (!Settings.EnableDynamicIconColor) return;
-
-        lock (_lock)
-        {
-            _inputRateBuckets[_inputRateBucketIndex]++;
-        }
-
-        ScheduleSave();
-    }
-
-    private void ResetInputRateBuckets()
-    {
-        lock (_lock)
-        {
-            _inputRateBuckets = new int[_inputRateBuckets.Length];
-            _inputRateBucketIndex = 0;
-        }
-    }
-
-    private void StartInputRateTracking()
-    {
-        _inputRateTimer?.Stop();
-        _inputRateTimer = new Timer(_inputRateBucketInterval);
-        _inputRateTimer.Elapsed += (_, _) => AdvanceInputRateBucket();
-        _inputRateTimer.Start();
-    }
-
-    private void StopInputRateTracking()
-    {
-        _inputRateTimer?.Stop();
-        _inputRateTimer?.Dispose();
-        _inputRateTimer = null;
-    }
-
-    private void AdvanceInputRateBucket()
-    {
-        lock (_lock)
-        {
-            _inputRateBucketIndex = (_inputRateBucketIndex + 1) % _inputRateBuckets.Length;
-            _inputRateBuckets[_inputRateBucketIndex] = 0;
-        }
-
-        UpdateCurrentInputRate();
-    }
-
-    private void UpdateCurrentInputRate()
-    {
-        int totalEvents;
-        lock (_lock)
-        {
-            totalEvents = _inputRateBuckets.Sum();
-        }
-
-        CurrentInputRatePerSecond = totalEvents / _inputRateWindowSeconds;
-        CurrentIconTintColor = Settings.EnableDynamicIconColor
-            ? IconGenerator.GetRateColor(CurrentInputRatePerSecond)
-            : null;
-
-        if (CurrentIconTintColor == DrawingColor.Empty)
-        {
-            CurrentIconTintColor = null;
-        }
-
-        NotifyTrayUpdate();
-    }
-
-    public void SetEnableDynamicIconColor(bool enabled)
-    {
-        Settings.EnableDynamicIconColor = enabled;
-        SaveSettings();
-
-        if (enabled)
-        {
-            ResetInputRateBuckets();
-            StartInputRateTracking();
-            UpdateCurrentInputRate();
-        }
-        else
-        {
-            StopInputRateTracking();
-            CurrentIconTintColor = null;
-            NotifyTrayUpdate();
-        }
     }
 
     private void EnsureCurrentDay()
@@ -330,11 +214,6 @@ public class StatsManager : IDisposable
             NotifyStatsUpdate();
         };
         _statsUpdateTimer.Start();
-    }
-
-    public void NotifyTrayUpdate()
-    {
-        TrayUpdateRequested?.Invoke();
     }
 
     private void NotifyStatsUpdate()
@@ -454,8 +333,6 @@ public class StatsManager : IDisposable
             {
                 var json = File.ReadAllText(_historyFilePath);
                 var history = JsonSerializer.Deserialize<Dictionary<string, DailyStats>>(json) ?? new();
-                // Clean up old entries (older than 30 days)
-                PruneOldHistory(history);
                 return history;
             }
         }
@@ -464,24 +341,6 @@ public class StatsManager : IDisposable
             System.Diagnostics.Debug.WriteLine($"Error loading history: {ex.Message}");
         }
         return new();
-    }
-
-    private void PruneOldHistory(Dictionary<string, DailyStats> history)
-    {
-        var cutoffDate = DateTime.Today.AddDays(-30);
-        var keysToRemove = history.Keys
-            .Where(key => DateTime.TryParse(key, out var date) && date < cutoffDate)
-            .ToList();
-
-        foreach (var key in keysToRemove)
-        {
-            history.Remove(key);
-        }
-
-        if (keysToRemove.Count > 0)
-        {
-            System.Diagnostics.Debug.WriteLine($"Pruned {keysToRemove.Count} old history entries");
-        }
     }
 
     public void SaveSettings()
@@ -619,11 +478,9 @@ public class StatsManager : IDisposable
         {
             ResetStats(now);
         }
-        // Also prune old history entries during midnight reset
         Dictionary<string, DailyStats> historySnapshot;
         lock (_lock)
         {
-            PruneOldHistory(History);
             historySnapshot = CloneHistorySnapshot(History);
         }
         SaveHistorySnapshot(historySnapshot);
@@ -650,7 +507,6 @@ public class StatsManager : IDisposable
 
         SaveHistorySnapshot(historySnapshot);
         UpdateNotificationBaselines();
-        NotifyTrayUpdate();
         NotifyStatsUpdate();
         SaveStats();
     }
@@ -711,27 +567,6 @@ public class StatsManager : IDisposable
 
     #region Formatting
 
-    public (string Keys, string Clicks) GetTrayTextParts()
-    {
-        var keys = Settings.ShowKeyPressesInTray ? FormatMenuBarNumber(CurrentStats.KeyPresses) : "";
-        var clicks = Settings.ShowMouseClicksInTray ? FormatMenuBarNumber(CurrentStats.TotalClicks) : "";
-        return (keys, clicks);
-    }
-
-    public string GetTooltipText()
-    {
-        return $"键盘: {CurrentStats.KeyPresses:N0}\n鼠标: {CurrentStats.TotalClicks:N0}";
-    }
-
-    private string FormatMenuBarNumber(int number)
-    {
-        if (number >= 1_000_000)
-            return $"{number / 1_000_000.0:F2}M";
-        if (number >= 1_000)
-            return $"{number / 1_000.0:F2}k";
-        return number.ToString();
-    }
-
     public string FormatNumber(int number)
     {
         if (number >= 1_000_000)
@@ -762,6 +597,105 @@ public class StatsManager : IDisposable
                 .Take(limit)
                 .Select(a => new AppStats(a))
                 .ToList();
+        }
+    }
+
+    #endregion
+
+    #region App Stats Summary
+
+    public enum AppStatsRange { Today, Week, Month, All }
+
+    public List<AppStats> GetAppStatsSummary(AppStatsRange range)
+    {
+        lock (_lock)
+        {
+            var totals = new Dictionary<string, AppStats>(StringComparer.OrdinalIgnoreCase);
+            var dates = GetAppStatsDates(range);
+            foreach (var date in dates)
+            {
+                var daily = GetDailyStats(date);
+                MergeAppStats(daily, totals);
+            }
+
+            return totals.Values
+                .Select(a => new AppStats(a))
+                .ToList();
+        }
+    }
+
+    private List<DateTime> GetAppStatsDates(AppStatsRange range)
+    {
+        var today = DateTime.Today;
+        var dates = new List<DateTime>();
+
+        if (range == AppStatsRange.All)
+        {
+            foreach (var key in History.Keys)
+            {
+                if (DateTime.TryParse(key, out var parsed))
+                {
+                    dates.Add(parsed.Date);
+                }
+            }
+            if (!dates.Contains(today))
+            {
+                dates.Add(today);
+            }
+            return dates.Distinct().OrderBy(d => d).ToList();
+        }
+
+        var startDate = range switch
+        {
+            AppStatsRange.Today => today,
+            AppStatsRange.Week => today.AddDays(-6),
+            AppStatsRange.Month => today.AddDays(-29),
+            _ => today
+        };
+
+        for (var date = startDate.Date; date <= today; date = date.AddDays(1))
+        {
+            dates.Add(date);
+        }
+
+        return dates;
+    }
+
+    private DailyStats GetDailyStats(DateTime date)
+    {
+        if (date.Date == CurrentStats.Date.Date)
+        {
+            return CurrentStats;
+        }
+
+        var key = date.ToString("yyyy-MM-dd");
+        return History.TryGetValue(key, out var stats) ? stats : new DailyStats(date);
+    }
+
+    private static void MergeAppStats(DailyStats daily, Dictionary<string, AppStats> totals)
+    {
+        if (daily.AppStats.Count == 0) return;
+
+        foreach (var kvp in daily.AppStats)
+        {
+            var appName = kvp.Key;
+            var source = kvp.Value;
+
+            if (!totals.TryGetValue(appName, out var total))
+            {
+                total = new AppStats(appName, source.DisplayName);
+                totals[appName] = total;
+            }
+
+            if (!string.IsNullOrEmpty(source.DisplayName))
+            {
+                total.DisplayName = source.DisplayName;
+            }
+
+            total.KeyPresses += source.KeyPresses;
+            total.LeftClicks += source.LeftClicks;
+            total.RightClicks += source.RightClicks;
+            total.ScrollDistance += source.ScrollDistance;
         }
     }
 
@@ -829,14 +763,25 @@ public class StatsManager : IDisposable
         };
     }
 
-    private string FormatMouseDistance(double distance)
+    public string FormatMouseDistance(double distance)
     {
-        var meters = distance * MetersPerPixel;
+        if (string.Equals(Settings.MouseDistanceUnit, "px", StringComparison.OrdinalIgnoreCase))
+        {
+            return $"{distance:F0} px";
+        }
+
+        var metersPerPixel = GetMetersPerPixel();
+        if (metersPerPixel <= 0)
+        {
+            return $"{distance:F0} px";
+        }
+
+        var meters = distance * metersPerPixel;
         if (meters >= 1000)
             return $"{meters / 1000:F2} km";
-        if (distance >= 1000)
+        if (meters >= 1)
             return $"{meters:F1} m";
-        return $"{distance:F0} px";
+        return $"{meters * 100:F1} cm";
     }
 
     private string FormatScrollDistance(double distance)
@@ -848,12 +793,53 @@ public class StatsManager : IDisposable
 
     #endregion
 
+    #region Mouse Calibration
+
+    public void UpdateMouseCalibration(double metersPerPixel)
+    {
+        if (double.IsNaN(metersPerPixel) || double.IsInfinity(metersPerPixel) || metersPerPixel <= 0)
+        {
+            return;
+        }
+
+        lock (_lock)
+        {
+            Settings.MouseMetersPerPixel = metersPerPixel;
+        }
+
+        SaveSettings();
+        NotifyStatsUpdate();
+    }
+
+    public void UpdateMouseDistanceUnit(string unit)
+    {
+        var normalized = string.Equals(unit, "px", StringComparison.OrdinalIgnoreCase) ? "px" : "auto";
+        lock (_lock)
+        {
+            Settings.MouseDistanceUnit = normalized;
+        }
+
+        SaveSettings();
+        NotifyStatsUpdate();
+    }
+
+    private double GetMetersPerPixel()
+    {
+        var metersPerPixel = Settings.MouseMetersPerPixel;
+        if (double.IsNaN(metersPerPixel) || double.IsInfinity(metersPerPixel) || metersPerPixel <= 0)
+        {
+            return DefaultMetersPerPixel;
+        }
+        return metersPerPixel;
+    }
+
+    #endregion
+
     public void FlushPendingSave()
     {
         _saveTimer?.Stop();
         _statsUpdateTimer?.Stop();
         _midnightTimer?.Stop();
-        _inputRateTimer?.Stop();
         SaveStats();
         SaveSettings();
     }
@@ -864,7 +850,6 @@ public class StatsManager : IDisposable
         _saveTimer?.Dispose();
         _statsUpdateTimer?.Dispose();
         _midnightTimer?.Dispose();
-        _inputRateTimer?.Dispose();
         _instance = null;
     }
 }
