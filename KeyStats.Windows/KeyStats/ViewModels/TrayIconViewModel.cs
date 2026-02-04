@@ -1,7 +1,6 @@
 using System;
 using System.Windows;
 using System.Windows.Input;
-using System.Windows.Media;
 using System.Reflection;
 using System.IO;
 using System.Drawing;
@@ -44,27 +43,12 @@ public class TrayIconViewModel : ViewModelBase
         ShowStatsCommand = new RelayCommand(ShowStats);
         QuitCommand = new RelayCommand(Quit);
 
-        UpdateTrayIcon();
-        UpdateTooltip();
-
-        StatsManager.Instance.TrayUpdateRequested += OnTrayUpdateRequested;
+        LoadTrayIconOnce();
     }
 
-    private void OnTrayUpdateRequested()
+    private void LoadTrayIconOnce()
     {
-        Application.Current?.Dispatcher.Invoke(() =>
-        {
-            UpdateTrayIcon();
-            UpdateTooltip();
-        });
-    }
-
-    private void UpdateTrayIcon()
-    {
-        // Dispose old icon to prevent memory leak
-        _trayIcon?.Dispose();
-
-        // 使用静态图标文件
+        // 使用静态图标文件（只初始化一次）
         try
         {
             var assembly = Assembly.GetExecutingAssembly();
@@ -116,9 +100,6 @@ public class TrayIconViewModel : ViewModelBase
         {
             Console.WriteLine($"Error loading tray icon from file: {ex.Message}");
         }
-
-        // 如果都失败，使用默认的动态生成图标
-        TrayIcon = IconGenerator.CreateTrayIconKeyboard();
     }
 
     private static int GetSystemTrayIconSize()
@@ -157,11 +138,6 @@ public class TrayIconViewModel : ViewModelBase
             g.DrawImage(original, 0, 0, width, height);
         }
         return resized;
-    }
-
-    private void UpdateTooltip()
-    {
-        TooltipText = StatsManager.Instance.GetTooltipText();
     }
 
     private void TogglePopup()
@@ -228,6 +204,7 @@ public class TrayIconViewModel : ViewModelBase
 
     public void Cleanup()
     {
-        StatsManager.Instance.TrayUpdateRequested -= OnTrayUpdateRequested;
+        _trayIcon?.Dispose();
+        _trayIcon = null;
     }
 }

@@ -5,10 +5,8 @@ using System.Linq;
 using System.Text;
 using System.Text.Json;
 using System.Timers;
-using KeyStats.Helpers;
 using KeyStats.Models;
 using Timer = System.Timers.Timer;
-using DrawingColor = System.Drawing.Color;
 
 namespace KeyStats.Services;
 
@@ -27,17 +25,10 @@ public class StatsManager : IDisposable
     private readonly object _lock = new();
     private Timer? _saveTimer;
     private Timer? _midnightTimer;
-    private Timer? _inputRateTimer;
     private Timer? _statsUpdateTimer;
 
     private readonly double _saveInterval = 2000; // 2 seconds
     private readonly double _statsUpdateDebounceInterval = 300; // 0.3 seconds
-    private readonly double _inputRateWindowSeconds = 3.0;
-    private readonly double _inputRateBucketInterval = 500; // 0.5 seconds
-    private readonly double[] _inputRateApmThresholds = { 0, 80, 160, 240 };
-
-    private int[] _inputRateBuckets;
-    private int _inputRateBucketIndex;
     private bool _pendingSave;
     private bool _pendingStatsUpdate;
 
@@ -48,10 +39,6 @@ public class StatsManager : IDisposable
     public AppSettings Settings { get; private set; }
     public Dictionary<string, DailyStats> History { get; private set; } = new();
 
-    public double CurrentInputRatePerSecond { get; private set; }
-    public DrawingColor? CurrentIconTintColor { get; private set; }
-
-    public event Action? TrayUpdateRequested;
     public event Action? StatsUpdateRequested;
 
     private StatsManager()
@@ -65,9 +52,6 @@ public class StatsManager : IDisposable
         _historyFilePath = Path.Combine(_dataFolder, "history.json");
         _settingsFilePath = Path.Combine(_dataFolder, "settings.json");
 
-        var bucketCount = Math.Max(1, (int)(_inputRateWindowSeconds / (_inputRateBucketInterval / 1000.0)));
-        _inputRateBuckets = new int[bucketCount];
-
         Settings = LoadSettings();
         History = LoadHistory();
         CurrentStats = LoadStats() ?? new DailyStats();
@@ -80,13 +64,6 @@ public class StatsManager : IDisposable
 
         UpdateNotificationBaselines();
         SaveStats();
-
-        if (Settings.EnableDynamicIconColor)
-        {
-            ResetInputRateBuckets();
-            StartInputRateTracking();
-            UpdateCurrentInputRate();
-        }
 
         SetupMidnightReset();
         SetupInputMonitor();
@@ -132,8 +109,6 @@ public class StatsManager : IDisposable
             UpdateAppStats(appName, stats => stats.RecordKeyPress());
         }
 
-        RegisterInputEvent();
-        NotifyTrayUpdate();
         NotifyStatsUpdate();
         NotifyKeyPressThresholdIfNeeded();
     }
@@ -147,8 +122,6 @@ public class StatsManager : IDisposable
             UpdateAppStats(appName, stats => stats.RecordLeftClick());
         }
 
-        RegisterInputEvent();
-        NotifyTrayUpdate();
         NotifyStatsUpdate();
         NotifyClickThresholdIfNeeded();
     }
@@ -162,8 +135,6 @@ public class StatsManager : IDisposable
             UpdateAppStats(appName, stats => stats.RecordRightClick());
         }
 
-        RegisterInputEvent();
-        NotifyTrayUpdate();
         NotifyStatsUpdate();
         NotifyClickThresholdIfNeeded();
     }
@@ -191,93 +162,6 @@ public class StatsManager : IDisposable
 
         ScheduleDebouncedStatsUpdate();
         ScheduleSave();
-    }
-
-    private void RegisterInputEvent()
-    {
-        if (!Settings.EnableDynamicIconColor) return;
-
-        lock (_lock)
-        {
-            _inputRateBuckets[_inputRateBucketIndex]++;
-        }
-
-        ScheduleSave();
-    }
-
-    private void ResetInputRateBuckets()
-    {
-        lock (_lock)
-        {
-            _inputRateBuckets = new int[_inputRateBuckets.Length];
-            _inputRateBucketIndex = 0;
-        }
-    }
-
-    private void StartInputRateTracking()
-    {
-        _inputRateTimer?.Stop();
-        _inputRateTimer = new Timer(_inputRateBucketInterval);
-        _inputRateTimer.Elapsed += (_, _) => AdvanceInputRateBucket();
-        _inputRateTimer.Start();
-    }
-
-    private void StopInputRateTracking()
-    {
-        _inputRateTimer?.Stop();
-        _inputRateTimer?.Dispose();
-        _inputRateTimer = null;
-    }
-
-    private void AdvanceInputRateBucket()
-    {
-        lock (_lock)
-        {
-            _inputRateBucketIndex = (_inputRateBucketIndex + 1) % _inputRateBuckets.Length;
-            _inputRateBuckets[_inputRateBucketIndex] = 0;
-        }
-
-        UpdateCurrentInputRate();
-    }
-
-    private void UpdateCurrentInputRate()
-    {
-        int totalEvents;
-        lock (_lock)
-        {
-            totalEvents = _inputRateBuckets.Sum();
-        }
-
-        CurrentInputRatePerSecond = totalEvents / _inputRateWindowSeconds;
-        CurrentIconTintColor = Settings.EnableDynamicIconColor
-            ? IconGenerator.GetRateColor(CurrentInputRatePerSecond)
-            : null;
-
-        if (CurrentIconTintColor == DrawingColor.Empty)
-        {
-            CurrentIconTintColor = null;
-        }
-
-        NotifyTrayUpdate();
-    }
-
-    public void SetEnableDynamicIconColor(bool enabled)
-    {
-        Settings.EnableDynamicIconColor = enabled;
-        SaveSettings();
-
-        if (enabled)
-        {
-            ResetInputRateBuckets();
-            StartInputRateTracking();
-            UpdateCurrentInputRate();
-        }
-        else
-        {
-            StopInputRateTracking();
-            CurrentIconTintColor = null;
-            NotifyTrayUpdate();
-        }
     }
 
     private void EnsureCurrentDay()
@@ -330,11 +214,6 @@ public class StatsManager : IDisposable
             NotifyStatsUpdate();
         };
         _statsUpdateTimer.Start();
-    }
-
-    public void NotifyTrayUpdate()
-    {
-        TrayUpdateRequested?.Invoke();
     }
 
     private void NotifyStatsUpdate()
@@ -650,7 +529,6 @@ public class StatsManager : IDisposable
 
         SaveHistorySnapshot(historySnapshot);
         UpdateNotificationBaselines();
-        NotifyTrayUpdate();
         NotifyStatsUpdate();
         SaveStats();
     }
@@ -710,27 +588,6 @@ public class StatsManager : IDisposable
     #endregion
 
     #region Formatting
-
-    public (string Keys, string Clicks) GetTrayTextParts()
-    {
-        var keys = Settings.ShowKeyPressesInTray ? FormatMenuBarNumber(CurrentStats.KeyPresses) : "";
-        var clicks = Settings.ShowMouseClicksInTray ? FormatMenuBarNumber(CurrentStats.TotalClicks) : "";
-        return (keys, clicks);
-    }
-
-    public string GetTooltipText()
-    {
-        return $"键盘: {CurrentStats.KeyPresses:N0}\n鼠标: {CurrentStats.TotalClicks:N0}";
-    }
-
-    private string FormatMenuBarNumber(int number)
-    {
-        if (number >= 1_000_000)
-            return $"{number / 1_000_000.0:F2}M";
-        if (number >= 1_000)
-            return $"{number / 1_000.0:F2}k";
-        return number.ToString();
-    }
 
     public string FormatNumber(int number)
     {
@@ -853,7 +710,6 @@ public class StatsManager : IDisposable
         _saveTimer?.Stop();
         _statsUpdateTimer?.Stop();
         _midnightTimer?.Stop();
-        _inputRateTimer?.Stop();
         SaveStats();
         SaveSettings();
     }
@@ -864,7 +720,6 @@ public class StatsManager : IDisposable
         _saveTimer?.Dispose();
         _statsUpdateTimer?.Dispose();
         _midnightTimer?.Dispose();
-        _inputRateTimer?.Dispose();
         _instance = null;
     }
 }
