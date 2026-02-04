@@ -3,14 +3,14 @@ description: Report a bug or ask a question
 title: "[Report]: "
 labels: ["needs-triage"]
 body:
-  - type: checkboxes
+  - type: dropdown
     id: platform
     attributes:
       label: Affected Platform
-      description: Select at least one platform where the issue occurs
+      description: Select the platform where the issue occurs
       options:
-        - label: macOS
-        - label: Windows
+        - macOS
+        - Windows
     validations:
       required: true
 
