@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
@@ -609,13 +609,16 @@ public partial class App : System.Windows.Application
     private Dictionary<string, object> BuildBaseProperties(Models.AppSettings settings)
     {
         var appVersion = _appVersion ?? "0.0.0";
+        var osVersion = Environment.OSVersion.Version;
+        var (windowsName, windowsBuild) = GetWindowsVersionInfo(osVersion);
         var properties = new Dictionary<string, object>
         {
             ["app_name"] = "KeyStats",
             ["app_version"] = appVersion,
             ["platform"] = "windows",
-            ["os"] = "Windows",
-            ["os_version"] = Environment.OSVersion.VersionString,
+            ["OS"] = "windows",
+            ["os_version"] = windowsName,
+            ["os_build"] = windowsBuild,
             ["dotnet_version"] = System.Environment.Version.ToString(),
             ["locale"] = CultureInfo.CurrentUICulture.Name
         };
@@ -633,6 +636,45 @@ public partial class App : System.Windows.Application
         };
 
         return properties;
+    }
+
+    private static (string Name, string Build) GetWindowsVersionInfo(Version version)
+    {
+        var build = version.Build;
+        var buildString = build.ToString();
+
+        // Windows 11: Build 22000+
+        // Windows 10: Build 10240-21999
+        // Windows 8.1: Build 9600
+        // Windows 8: Build 9200
+        // Windows 7: Build 7600/7601
+        string name;
+        if (build >= 22000)
+        {
+            name = "Windows 11";
+        }
+        else if (build >= 10240)
+        {
+            name = "Windows 10";
+        }
+        else if (build >= 9600)
+        {
+            name = "Windows 8.1";
+        }
+        else if (build >= 9200)
+        {
+            name = "Windows 8";
+        }
+        else if (build >= 7600)
+        {
+            name = "Windows 7";
+        }
+        else
+        {
+            name = $"Windows (Build {build})";
+        }
+
+        return (name, buildString);
     }
 
     private void TrackAnalyticsExit()
