@@ -12,12 +12,14 @@ class MenuBarController {
     
     private var statusItem: NSStatusItem!
     private var statusView: MenuBarStatusView?
+    private var contextMenu: NSMenu?
     private var popover: NSPopover!
     private var eventMonitor: Any?
     private let dynamicIconColorStyleKey = "dynamicIconColorStyle"
     
     init() {
         setupStatusItem()
+        setupContextMenu()
         setupPopover()
         setupEventMonitor()
         StatsManager.shared.menuBarUpdateHandler = { [weak self] in
@@ -41,9 +43,36 @@ class MenuBarController {
         statusView.onClick = { [weak self] in
             self?.togglePopover()
         }
+        statusView.onRightClick = { [weak self] in
+            self?.showContextMenu()
+        }
         statusItem.view = statusView
         self.statusView = statusView
         updateMenuBarAppearance()
+    }
+
+    private func setupContextMenu() {
+        let menu = NSMenu()
+
+        let settingsItem = NSMenuItem(
+            title: NSLocalizedString("settings.title", comment: ""),
+            action: #selector(openSettings),
+            keyEquivalent: ""
+        )
+        settingsItem.target = self
+        menu.addItem(settingsItem)
+
+        menu.addItem(.separator())
+
+        let quitItem = NSMenuItem(
+            title: NSLocalizedString("button.quit", comment: ""),
+            action: #selector(quitApp),
+            keyEquivalent: "q"
+        )
+        quitItem.target = self
+        menu.addItem(quitItem)
+
+        contextMenu = menu
     }
     
     // MARK: - 设置弹出面板
@@ -74,6 +103,20 @@ class MenuBarController {
         } else {
             showPopover()
         }
+    }
+
+    private func showContextMenu() {
+        closePopover()
+        guard let menu = contextMenu else { return }
+        statusItem.popUpMenu(menu)
+    }
+
+    @objc private func openSettings() {
+        SettingsWindowController.shared.show()
+    }
+
+    @objc private func quitApp() {
+        NSApp.terminate(nil)
     }
     
     private func showPopover() {
@@ -282,6 +325,7 @@ class MenuBarStatusView: NSView {
     private var hostingView: NSHostingView<MenuBarStatusSwiftUIView>?
 
     var onClick: (() -> Void)?
+    var onRightClick: (() -> Void)?
 
     override init(frame frameRect: NSRect) {
         super.init(frame: frameRect)
@@ -355,6 +399,14 @@ class MenuBarStatusView: NSView {
     }
 
     override func mouseDown(with event: NSEvent) {
+        if event.modifierFlags.contains(.control) {
+            onRightClick?()
+            return
+        }
         onClick?()
+    }
+
+    override func rightMouseDown(with event: NSEvent) {
+        onRightClick?()
     }
 }
