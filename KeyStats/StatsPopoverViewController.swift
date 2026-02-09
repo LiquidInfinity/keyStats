@@ -1312,31 +1312,109 @@ class StatsChartView: NSView {
         let count = series.count
         guard count > 0 else { return }
         let xPositions = xPositions(in: rect)
-        let path = NSBezierPath()
-        
-        for (index, item) in series.enumerated() {
+        let points: [NSPoint] = series.enumerated().map { index, item in
             let x = xPositions[index]
             let y = yPosition(for: item.value, in: rect, maxValue: maxValue)
-            let point = NSPoint(x: x, y: y)
-            if index == 0 {
-                path.move(to: point)
-            } else {
-                path.line(to: point)
+            return NSPoint(x: x, y: y)
+        }
+
+        let path = NSBezierPath()
+        path.move(to: points[0])
+
+        if points.count > 1 {
+            let tangents = monotoneTangents(for: points)
+            for index in 0..<(points.count - 1) {
+                let current = points[index]
+                let next = points[index + 1]
+                let dx = next.x - current.x
+                guard dx > 0 else {
+                    path.line(to: next)
+                    continue
+                }
+
+                let controlPoint1 = NSPoint(
+                    x: current.x + dx / 3,
+                    y: current.y + tangents[index] * dx / 3
+                )
+                let controlPoint2 = NSPoint(
+                    x: next.x - dx / 3,
+                    y: next.y - tangents[index + 1] * dx / 3
+                )
+                path.curve(to: next, controlPoint1: controlPoint1, controlPoint2: controlPoint2)
             }
         }
         
         NSColor.systemBlue.setStroke()
         path.lineWidth = 2
+        path.lineJoinStyle = .round
+        path.lineCapStyle = .round
         path.stroke()
         
-        for (index, item) in series.enumerated() {
-            let x = xPositions[index]
-            let y = yPosition(for: item.value, in: rect, maxValue: maxValue)
+        for point in points {
+            let x = point.x
+            let y = point.y
             let dotRect = NSRect(x: x - 2.5, y: y - 2.5, width: 5, height: 5)
             let dot = NSBezierPath(ovalIn: dotRect)
             NSColor.systemBlue.setFill()
             dot.fill()
         }
+    }
+
+    private func monotoneTangents(for points: [NSPoint]) -> [CGFloat] {
+        let count = points.count
+        guard count > 1 else { return [0] }
+
+        var dx = Array(repeating: CGFloat(0), count: count - 1)
+        var slopes = Array(repeating: CGFloat(0), count: count - 1)
+
+        for index in 0..<(count - 1) {
+            let deltaX = max(0.0001, points[index + 1].x - points[index].x)
+            dx[index] = deltaX
+            slopes[index] = (points[index + 1].y - points[index].y) / deltaX
+        }
+
+        var tangents = Array(repeating: CGFloat(0), count: count)
+        tangents[0] = slopes[0]
+        tangents[count - 1] = slopes[count - 2]
+
+        if count > 2 {
+            for index in 1..<(count - 1) {
+                let previousSlope = slopes[index - 1]
+                let nextSlope = slopes[index]
+
+                if previousSlope == 0 || nextSlope == 0 || (previousSlope > 0) != (nextSlope > 0) {
+                    tangents[index] = 0
+                    continue
+                }
+
+                let previousDX = dx[index - 1]
+                let nextDX = dx[index]
+                let weight1 = 2 * nextDX + previousDX
+                let weight2 = nextDX + 2 * previousDX
+                tangents[index] = (weight1 + weight2) / ((weight1 / previousSlope) + (weight2 / nextSlope))
+            }
+        }
+
+        for index in 0..<(count - 1) {
+            let slope = slopes[index]
+            if slope == 0 {
+                tangents[index] = 0
+                tangents[index + 1] = 0
+                continue
+            }
+
+            let alpha = tangents[index] / slope
+            let beta = tangents[index + 1] / slope
+            let magnitude = alpha * alpha + beta * beta
+
+            if magnitude > 9 {
+                let scale = CGFloat(3.0 / sqrt(Double(magnitude)))
+                tangents[index] = scale * alpha * slope
+                tangents[index + 1] = scale * beta * slope
+            }
+        }
+
+        return tangents
     }
     
     private func drawBarChart(in rect: NSRect, maxValue: Double) {
