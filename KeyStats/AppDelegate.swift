@@ -94,7 +94,9 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         if let appIcon = NSImage(named: "AppIcon") {
             alert.icon = makeRoundedAlertIcon(from: appIcon)
         }
-        alert.informativeText = NSLocalizedString("permission.message", comment: "")
+        let permissionMessage = NSLocalizedString("permission.message", comment: "")
+        let reinstallTip = NSLocalizedString("permission.reinstallTip", comment: "")
+        alert.informativeText = [permissionMessage, reinstallTip].joined(separator: "\n\n")
         alert.alertStyle = .informational
         alert.addButton(withTitle: NSLocalizedString("permission.openSettings", comment: ""))
         alert.addButton(withTitle: NSLocalizedString("permission.later", comment: ""))
