@@ -42,6 +42,7 @@ class StatsPopoverViewController: NSViewController {
     private var allTimeStatsButton: NSButton!
     private var pendingStatsRefresh = false
     private var statsUpdateToken: UUID?
+    private var updateAvailabilityToken: UUID?
     private var appearanceObservation: NSKeyValueObservation?
     
     // 统计项视图
@@ -87,6 +88,7 @@ class StatsPopoverViewController: NSViewController {
         super.viewWillAppear()
         updateStats()
         startLiveUpdates()
+        startUpdateAvailabilityUpdates()
     }
 
     override func viewDidAppear() {
@@ -98,10 +100,12 @@ class StatsPopoverViewController: NSViewController {
     override func viewWillDisappear() {
         super.viewWillDisappear()
         stopLiveUpdates()
+        stopUpdateAvailabilityUpdates()
     }
     
     deinit {
         stopLiveUpdates()
+        stopUpdateAvailabilityUpdates()
         appearanceObservation = nil
     }
     
@@ -293,6 +297,7 @@ class StatsPopoverViewController: NSViewController {
         checkUpdatesButton = NSButton(title: NSLocalizedString("button.checkUpdates", comment: ""), target: self, action: #selector(checkForUpdates))
         checkUpdatesButton.bezelStyle = .rounded
         checkUpdatesButton.controlSize = .regular
+        checkUpdatesButton.isHidden = true
         
         // 退出按钮
         quitButton = NSButton(title: NSLocalizedString("button.quit", comment: ""), target: self, action: #selector(quitApp))
@@ -523,6 +528,24 @@ class StatsPopoverViewController: NSViewController {
         }
         statsUpdateToken = nil
         pendingStatsRefresh = false
+    }
+
+    private func startUpdateAvailabilityUpdates() {
+        if let token = updateAvailabilityToken {
+            UpdateManager.shared.removeUpdateAvailabilityHandler(token)
+        }
+
+        updateAvailabilityToken = UpdateManager.shared.addUpdateAvailabilityHandler { [weak self] hasUpdate in
+            self?.checkUpdatesButton.isHidden = !hasUpdate
+        }
+        UpdateManager.shared.probeForUpdateAvailability()
+    }
+
+    private func stopUpdateAvailabilityUpdates() {
+        if let token = updateAvailabilityToken {
+            UpdateManager.shared.removeUpdateAvailabilityHandler(token)
+        }
+        updateAvailabilityToken = nil
     }
 
     private func scheduleStatsRefresh() {
