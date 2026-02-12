@@ -196,6 +196,7 @@ class StatsPopoverViewController: NSViewController {
         }
         statsStackView.orientation = .vertical
         statsStackView.spacing = 8
+        statsStackView.detachesHiddenViews = true
         statsStackView.translatesAutoresizingMaskIntoConstraints = false
         containerView.addSubview(statsStackView)
         
