@@ -76,6 +76,8 @@ public class StatsManager : IDisposable
         monitor.KeyPressed += OnKeyPressed;
         monitor.LeftMouseClicked += OnLeftClick;
         monitor.RightMouseClicked += OnRightClick;
+        monitor.SideBackMouseClicked += OnSideBackClick;
+        monitor.SideForwardMouseClicked += OnSideForwardClick;
         monitor.MouseMoved += OnMouseMoved;
         monitor.MouseScrolled += OnMouseScrolled;
     }
@@ -134,6 +136,32 @@ public class StatsManager : IDisposable
             EnsureCurrentDay();
             CurrentStats.RightClicks++;
             UpdateAppStats(appName, stats => stats.RecordRightClick());
+        }
+
+        NotifyStatsUpdate();
+        NotifyClickThresholdIfNeeded();
+    }
+
+    private void OnSideBackClick(string appName)
+    {
+        lock (_lock)
+        {
+            EnsureCurrentDay();
+            CurrentStats.SideBackClicks++;
+            UpdateAppStats(appName, stats => stats.RecordSideBackClick());
+        }
+
+        NotifyStatsUpdate();
+        NotifyClickThresholdIfNeeded();
+    }
+
+    private void OnSideForwardClick(string appName)
+    {
+        lock (_lock)
+        {
+            EnsureCurrentDay();
+            CurrentStats.SideForwardClicks++;
+            UpdateAppStats(appName, stats => stats.RecordSideForwardClick());
         }
 
         NotifyStatsUpdate();
@@ -287,6 +315,8 @@ public class StatsManager : IDisposable
             KeyPresses = CurrentStats.KeyPresses,
             LeftClicks = CurrentStats.LeftClicks,
             RightClicks = CurrentStats.RightClicks,
+            SideBackClicks = CurrentStats.SideBackClicks,
+            SideForwardClicks = CurrentStats.SideForwardClicks,
             MouseDistance = CurrentStats.MouseDistance,
             ScrollDistance = CurrentStats.ScrollDistance,
             KeyPressCounts = new Dictionary<string, int>(CurrentStats.KeyPressCounts),
@@ -524,6 +554,8 @@ public class StatsManager : IDisposable
             KeyPresses = source.KeyPresses,
             LeftClicks = source.LeftClicks,
             RightClicks = source.RightClicks,
+            SideBackClicks = source.SideBackClicks,
+            SideForwardClicks = source.SideForwardClicks,
             MouseDistance = source.MouseDistance,
             ScrollDistance = source.ScrollDistance,
             KeyPressCounts = new Dictionary<string, int>(source.KeyPressCounts),
@@ -608,6 +640,8 @@ public class StatsManager : IDisposable
                     KeyPresses = Math.Max(0, sourceStats.KeyPresses),
                     LeftClicks = Math.Max(0, sourceStats.LeftClicks),
                     RightClicks = Math.Max(0, sourceStats.RightClicks),
+                    SideBackClicks = Math.Max(0, sourceStats.SideBackClicks),
+                    SideForwardClicks = Math.Max(0, sourceStats.SideForwardClicks),
                     ScrollDistance = SanitizeDistance(sourceStats.ScrollDistance)
                 };
             }
@@ -619,6 +653,8 @@ public class StatsManager : IDisposable
             KeyPressCounts = keyPressCounts,
             LeftClicks = Math.Max(0, source?.LeftClicks ?? 0),
             RightClicks = Math.Max(0, source?.RightClicks ?? 0),
+            SideBackClicks = Math.Max(0, source?.SideBackClicks ?? 0),
+            SideForwardClicks = Math.Max(0, source?.SideForwardClicks ?? 0),
             MouseDistance = SanitizeDistance(source?.MouseDistance ?? 0),
             ScrollDistance = SanitizeDistance(source?.ScrollDistance ?? 0),
             AppStats = appStats
@@ -660,6 +696,8 @@ public class StatsManager : IDisposable
             existingApp.KeyPresses += kvp.Value.KeyPresses;
             existingApp.LeftClicks += kvp.Value.LeftClicks;
             existingApp.RightClicks += kvp.Value.RightClicks;
+            existingApp.SideBackClicks += kvp.Value.SideBackClicks;
+            existingApp.SideForwardClicks += kvp.Value.SideForwardClicks;
             existingApp.ScrollDistance += kvp.Value.ScrollDistance;
         }
 
@@ -668,6 +706,8 @@ public class StatsManager : IDisposable
             KeyPresses = normalizedExisting.KeyPresses + normalizedIncoming.KeyPresses,
             LeftClicks = normalizedExisting.LeftClicks + normalizedIncoming.LeftClicks,
             RightClicks = normalizedExisting.RightClicks + normalizedIncoming.RightClicks,
+            SideBackClicks = normalizedExisting.SideBackClicks + normalizedIncoming.SideBackClicks,
+            SideForwardClicks = normalizedExisting.SideForwardClicks + normalizedIncoming.SideForwardClicks,
             MouseDistance = normalizedExisting.MouseDistance + normalizedIncoming.MouseDistance,
             ScrollDistance = normalizedExisting.ScrollDistance + normalizedIncoming.ScrollDistance,
             KeyPressCounts = keyPressCounts,
@@ -940,6 +980,8 @@ public class StatsManager : IDisposable
             total.KeyPresses += source.KeyPresses;
             total.LeftClicks += source.LeftClicks;
             total.RightClicks += source.RightClicks;
+            total.SideBackClicks += source.SideBackClicks;
+            total.SideForwardClicks += source.SideForwardClicks;
             total.ScrollDistance += source.ScrollDistance;
         }
     }

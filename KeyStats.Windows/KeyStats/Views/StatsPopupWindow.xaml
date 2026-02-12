@@ -51,6 +51,21 @@
                 </Border>
             </Grid>
 
+            <Grid Margin="0,0,0,6"
+                  Visibility="{Binding IsSideClickRowVisible, Converter={StaticResource BoolToVisibilityConverter}}">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="6"/>
+                    <ColumnDefinition Width="*"/>
+                </Grid.ColumnDefinitions>
+                <Border Grid.Column="0" Style="{DynamicResource CardBorder}">
+                    <controls:StatItemControl Icon="&#xE8B0;" Title="侧键后退" Value="{Binding SideBackClicks}"/>
+                </Border>
+                <Border Grid.Column="2" Style="{DynamicResource CardBorder}">
+                    <controls:StatItemControl Icon="&#xE8B0;" Title="侧键前进" Value="{Binding SideForwardClicks}"/>
+                </Border>
+            </Grid>
+
             <Grid Margin="0,0,0,6">
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="*"/>

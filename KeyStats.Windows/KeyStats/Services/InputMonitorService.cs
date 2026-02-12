@@ -28,6 +28,8 @@ public class InputMonitorService : IDisposable
     public event Action<string, string>? KeyPressed;
     public event Action<string>? LeftMouseClicked;
     public event Action<string>? RightMouseClicked;
+    public event Action<string>? SideBackMouseClicked;
+    public event Action<string>? SideForwardMouseClicked;
     public event Action<double>? MouseMoved;
     public event Action<double, string>? MouseScrolled;
 
@@ -157,6 +159,22 @@ public class InputMonitorService : IDisposable
                     {
                         var appName = ActiveWindowManager.GetActiveProcessName();
                         ThreadPool.QueueUserWorkItem(_ => RightMouseClicked?.Invoke(appName));
+                    }
+                    break;
+
+                case NativeInterop.WM_XBUTTONDOWN:
+                    {
+                        var appName = ActiveWindowManager.GetActiveProcessName();
+                        var button = NativeInterop.HiWord((int)hookStruct.mouseData);
+                        if (button == NativeInterop.XBUTTON2)
+                        {
+                            ThreadPool.QueueUserWorkItem(_ => SideForwardMouseClicked?.Invoke(appName));
+                        }
+                        else
+                        {
+                            // Default unknown/legacy side buttons to back.
+                            ThreadPool.QueueUserWorkItem(_ => SideBackMouseClicked?.Invoke(appName));
+                        }
                     }
                     break;
 

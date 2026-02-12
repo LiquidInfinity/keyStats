@@ -38,6 +38,9 @@ public class StatsPopupViewModel : ViewModelBase
     private string _keyPresses = "0";
     private string _leftClicks = "0";
     private string _rightClicks = "0";
+    private string _sideBackClicks = "0";
+    private string _sideForwardClicks = "0";
+    private bool _isSideClickRowVisible;
     private string _mouseDistance = "0 px";
     private string _scrollDistance = "0 px";
     private int _selectedRangeIndex;
@@ -61,6 +64,24 @@ public class StatsPopupViewModel : ViewModelBase
     {
         get => _rightClicks;
         set => SetProperty(ref _rightClicks, value);
+    }
+
+    public string SideBackClicks
+    {
+        get => _sideBackClicks;
+        set => SetProperty(ref _sideBackClicks, value);
+    }
+
+    public string SideForwardClicks
+    {
+        get => _sideForwardClicks;
+        set => SetProperty(ref _sideForwardClicks, value);
+    }
+
+    public bool IsSideClickRowVisible
+    {
+        get => _isSideClickRowVisible;
+        set => SetProperty(ref _isSideClickRowVisible, value);
     }
 
     public string MouseDistance
@@ -183,6 +204,9 @@ public class StatsPopupViewModel : ViewModelBase
         KeyPresses = stats.KeyPresses.ToString("N0");
         LeftClicks = stats.LeftClicks.ToString("N0");
         RightClicks = stats.RightClicks.ToString("N0");
+        SideBackClicks = stats.SideBackClicks.ToString("N0");
+        SideForwardClicks = stats.SideForwardClicks.ToString("N0");
+        IsSideClickRowVisible = (stats.SideBackClicks + stats.SideForwardClicks) > 0;
         MouseDistance = manager.FormatMouseDistance(stats.MouseDistance);
         ScrollDistance = stats.FormattedScrollDistance;
     }

@@ -23,6 +23,12 @@ public class DailyStats
     [JsonPropertyName("rightClicks")]
     public int RightClicks { get; set; }
 
+    [JsonPropertyName("sideBackClicks")]
+    public int SideBackClicks { get; set; }
+
+    [JsonPropertyName("sideForwardClicks")]
+    public int SideForwardClicks { get; set; }
+
     [JsonPropertyName("mouseDistance")]
     public double MouseDistance { get; set; }
 
@@ -33,7 +39,7 @@ public class DailyStats
     public Dictionary<string, AppStats> AppStats { get; set; } = new();
 
     [JsonIgnore]
-    public int TotalClicks => LeftClicks + RightClicks;
+    public int TotalClicks => LeftClicks + RightClicks + SideBackClicks + SideForwardClicks;
 
     public DailyStats()
     {

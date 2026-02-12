@@ -9,13 +9,21 @@ public class AppStats
     public int KeyPresses { get; set; }
     public int LeftClicks { get; set; }
     public int RightClicks { get; set; }
+    public int SideBackClicks { get; set; }
+    public int SideForwardClicks { get; set; }
     public double ScrollDistance { get; set; }
 
     [JsonIgnore]
-    public int TotalClicks => LeftClicks + RightClicks;
+    public int TotalClicks => LeftClicks + RightClicks + SideBackClicks + SideForwardClicks;
 
     [JsonIgnore]
-    public bool HasActivity => KeyPresses > 0 || LeftClicks > 0 || RightClicks > 0 || ScrollDistance > 0;
+    public bool HasActivity =>
+        KeyPresses > 0 ||
+        LeftClicks > 0 ||
+        RightClicks > 0 ||
+        SideBackClicks > 0 ||
+        SideForwardClicks > 0 ||
+        ScrollDistance > 0;
 
     public AppStats() { }
 
@@ -32,11 +40,15 @@ public class AppStats
         KeyPresses = source.KeyPresses;
         LeftClicks = source.LeftClicks;
         RightClicks = source.RightClicks;
+        SideBackClicks = source.SideBackClicks;
+        SideForwardClicks = source.SideForwardClicks;
         ScrollDistance = source.ScrollDistance;
     }
 
     public void RecordKeyPress() => KeyPresses++;
     public void RecordLeftClick() => LeftClicks++;
     public void RecordRightClick() => RightClicks++;
+    public void RecordSideBackClick() => SideBackClicks++;
+    public void RecordSideForwardClick() => SideForwardClicks++;
     public void AddScrollDistance(double distance) => ScrollDistance += distance;
 }
