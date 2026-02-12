@@ -96,7 +96,8 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         }
         let permissionMessage = NSLocalizedString("permission.message", comment: "")
         let reinstallTip = NSLocalizedString("permission.reinstallTip", comment: "")
-        alert.informativeText = [permissionMessage, reinstallTip].joined(separator: "\n\n")
+        let textParts = [permissionMessage, reinstallTip].filter { !$0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
+        alert.informativeText = textParts.joined(separator: "\n\n")
         alert.alertStyle = .informational
         alert.addButton(withTitle: NSLocalizedString("permission.openSettings", comment: ""))
         alert.addButton(withTitle: NSLocalizedString("permission.later", comment: ""))

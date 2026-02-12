@@ -1,6 +1,6 @@
 "permission.title" = "Accessibility Permission Required";
-"permission.message" = "KeyStats needs Accessibility permission to monitor keyboard and mouse events.\n\nPlease follow these steps:\n1. Click \"Open System Settings\"\n2. In \"Privacy & Security\", open \"Accessibility\"\n3. Enable KeyStats\n\nAfter authorization, the app will start counting automatically.";
-"permission.reinstallTip" = "Reinstall/upgrade tip: Unsigned builds require re-authorizing Accessibility after reinstall. In \"Privacy & Security > Accessibility\", remove old KeyStats, then return and click \"Get Permission\".";
+"permission.message" = "KeyStats needs Accessibility access to count keyboard and mouse activity.\n\nClick \"Open System Settings\" and enable KeyStats in Privacy & Security > Accessibility.";
+"permission.reinstallTip" = "If reinstalled, you may need to re-enable Accessibility access.";
 "permission.openSettings" = "Open System Settings";
 "permission.later" = "Later";
 "button.permission" = "Permissions";
