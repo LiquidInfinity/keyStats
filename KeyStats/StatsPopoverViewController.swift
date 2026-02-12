@@ -49,6 +49,9 @@ class StatsPopoverViewController: NSViewController {
     private var keyPressView: StatItemView!
     private var leftClickView: StatItemView!
     private var rightClickView: StatItemView!
+    private var sideBackClickView: StatItemView!
+    private var sideForwardClickView: StatItemView!
+    private var sideClickRow: NSStackView!
     private var mouseDistanceView: StatItemView!
     private var scrollDistanceView: StatItemView!
     
@@ -144,6 +147,8 @@ class StatsPopoverViewController: NSViewController {
         keyPressView = StatItemView(icon: "⌨️", title: NSLocalizedString("stats.keyPresses", comment: ""), value: "0")
         leftClickView = StatItemView(icon: "🖱️", title: NSLocalizedString("stats.leftClicks", comment: ""), value: "0")
         rightClickView = StatItemView(icon: "🖱️", title: NSLocalizedString("stats.rightClicks", comment: ""), value: "0")
+        sideBackClickView = StatItemView(icon: "🖱️", title: NSLocalizedString("stats.sideBackClicks", comment: ""), value: "0")
+        sideForwardClickView = StatItemView(icon: "🖱️", title: NSLocalizedString("stats.sideForwardClicks", comment: ""), value: "0")
         mouseDistanceView = StatItemView(icon: "↔️", title: NSLocalizedString("stats.mouseDistance", comment: ""), value: "0 px")
         scrollDistanceView = StatItemView(icon: "↕️", title: NSLocalizedString("stats.scrollDistance", comment: ""), value: "0 px")
         
@@ -153,6 +158,13 @@ class StatsPopoverViewController: NSViewController {
         clickRow.distribution = .fillEqually
         clickRow.alignment = .centerY
         clickRow.translatesAutoresizingMaskIntoConstraints = false
+
+        sideClickRow = NSStackView(views: [sideBackClickView, sideForwardClickView])
+        sideClickRow.orientation = .horizontal
+        sideClickRow.spacing = 16
+        sideClickRow.distribution = .fillEqually
+        sideClickRow.alignment = .centerY
+        sideClickRow.translatesAutoresizingMaskIntoConstraints = false
 
         let isChinese = Locale.current.language.languageCode?.identifier == "zh"
 
@@ -168,6 +180,7 @@ class StatsPopoverViewController: NSViewController {
             statsStackView = NSStackView(views: [
                 keyPressView,
                 clickRow,
+                sideClickRow,
                 distanceRow
             ])
         } else {
@@ -175,6 +188,7 @@ class StatsPopoverViewController: NSViewController {
             statsStackView = NSStackView(views: [
                 keyPressView,
                 clickRow,
+                sideClickRow,
                 mouseDistanceView,
                 scrollDistanceView
             ])
@@ -509,6 +523,9 @@ class StatsPopoverViewController: NSViewController {
         keyPressView.updateValue(formatNumber(stats.keyPresses))
         leftClickView.updateValue(formatNumber(stats.leftClicks))
         rightClickView.updateValue(formatNumber(stats.rightClicks))
+        sideBackClickView.updateValue(formatNumber(stats.sideBackClicks))
+        sideForwardClickView.updateValue(formatNumber(stats.sideForwardClicks))
+        sideClickRow.isHidden = (stats.sideBackClicks + stats.sideForwardClicks) == 0
         mouseDistanceView.updateValue(stats.formattedMouseDistance)
         scrollDistanceView.updateValue(stats.formattedScrollDistance)
         updateKeyBreakdown()

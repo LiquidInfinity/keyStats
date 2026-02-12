@@ -57,6 +57,7 @@ class InputMonitor {
             (1 << CGEventType.keyDown.rawValue) |
             (1 << CGEventType.leftMouseDown.rawValue) |
             (1 << CGEventType.rightMouseDown.rawValue) |
+            (1 << CGEventType.otherMouseDown.rawValue) |
             (1 << CGEventType.mouseMoved.rawValue) |
             (1 << CGEventType.leftMouseDragged.rawValue) |
             (1 << CGEventType.rightMouseDragged.rawValue) |
@@ -148,6 +149,16 @@ class InputMonitor {
                 statsManager.incrementLeftClicks(appIdentity: appIdentityProvider())
             } else {
                 statsManager.incrementRightClicks(appIdentity: appIdentityProvider())
+            }
+
+        case .otherMouseDown:
+            let buttonNumber = event.getIntegerValueField(.mouseEventButtonNumber)
+            // Common mapping on macOS: 3 = Back, 4 = Forward.
+            // Unknown side buttons are grouped into Back to avoid dropping counts.
+            if buttonNumber == 4 {
+                statsManager.incrementSideForwardClicks(appIdentity: appIdentityProvider())
+            } else {
+                statsManager.incrementSideBackClicks(appIdentity: appIdentityProvider())
             }
             
         case .mouseMoved, .leftMouseDragged, .rightMouseDragged:

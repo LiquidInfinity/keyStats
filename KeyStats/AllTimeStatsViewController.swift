@@ -483,7 +483,10 @@ class AllTimeStatsViewController: NSViewController {
         avgRow.widthAnchor.constraint(equalTo: insightsGrid.widthAnchor).isActive = true
         
         // 3. 点击占比
-        let ratioRow = ClickRatioView(leftClicks: stats.totalLeftClicks, rightClicks: stats.totalRightClicks)
+        let ratioRow = ClickRatioView(
+            leftClicks: stats.totalLeftClicks,
+            rightClicks: stats.totalRightClicks + stats.totalSideBackClicks + stats.totalSideForwardClicks
+        )
         insightsGrid.addArrangedSubview(ratioRow)
         ratioRow.widthAnchor.constraint(equalTo: insightsGrid.widthAnchor).isActive = true
         

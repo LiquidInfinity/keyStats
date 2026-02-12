@@ -20,6 +20,8 @@ struct DailyStats: Codable {
     var keyPressCounts: [String: Int]
     var leftClicks: Int
     var rightClicks: Int
+    var sideBackClicks: Int
+    var sideForwardClicks: Int
     var mouseDistance: Double  // 以像素为单位
     var scrollDistance: Double // 以像素为单位
     var appStats: [String: AppStats]
@@ -30,6 +32,8 @@ struct DailyStats: Codable {
         self.keyPressCounts = [:]
         self.leftClicks = 0
         self.rightClicks = 0
+        self.sideBackClicks = 0
+        self.sideForwardClicks = 0
         self.mouseDistance = 0
         self.scrollDistance = 0
         self.appStats = [:]
@@ -41,6 +45,8 @@ struct DailyStats: Codable {
         self.keyPressCounts = [:]
         self.leftClicks = 0
         self.rightClicks = 0
+        self.sideBackClicks = 0
+        self.sideForwardClicks = 0
         self.mouseDistance = 0
         self.scrollDistance = 0
         self.appStats = [:]
@@ -52,6 +58,10 @@ struct DailyStats: Codable {
         case keyPressCounts
         case leftClicks
         case rightClicks
+        case sideBackClicks
+        case sideForwardClicks
+        // legacy field
+        case otherClicks
         case mouseDistance
         case scrollDistance
         case appStats
@@ -64,6 +74,12 @@ struct DailyStats: Codable {
         keyPressCounts = try container.decodeIfPresent([String: Int].self, forKey: .keyPressCounts) ?? [:]
         leftClicks = try container.decodeIfPresent(Int.self, forKey: .leftClicks) ?? 0
         rightClicks = try container.decodeIfPresent(Int.self, forKey: .rightClicks) ?? 0
+        sideBackClicks = try container.decodeIfPresent(Int.self, forKey: .sideBackClicks) ?? 0
+        sideForwardClicks = try container.decodeIfPresent(Int.self, forKey: .sideForwardClicks) ?? 0
+        // Backward compatibility: old builds stored all side clicks in `otherClicks`.
+        if !container.contains(.sideBackClicks) && !container.contains(.sideForwardClicks) {
+            sideBackClicks = try container.decodeIfPresent(Int.self, forKey: .otherClicks) ?? 0
+        }
         mouseDistance = try container.decodeIfPresent(Double.self, forKey: .mouseDistance) ?? 0
         scrollDistance = try container.decodeIfPresent(Double.self, forKey: .scrollDistance) ?? 0
         appStats = try container.decodeIfPresent([String: AppStats].self, forKey: .appStats) ?? [:]
@@ -76,19 +92,23 @@ struct DailyStats: Codable {
         try container.encode(keyPressCounts, forKey: .keyPressCounts)
         try container.encode(leftClicks, forKey: .leftClicks)
         try container.encode(rightClicks, forKey: .rightClicks)
+        try container.encode(sideBackClicks, forKey: .sideBackClicks)
+        try container.encode(sideForwardClicks, forKey: .sideForwardClicks)
         try container.encode(mouseDistance, forKey: .mouseDistance)
         try container.encode(scrollDistance, forKey: .scrollDistance)
         try container.encode(appStats, forKey: .appStats)
     }
     
     var totalClicks: Int {
-        return leftClicks + rightClicks
+        return leftClicks + rightClicks + sideBackClicks + sideForwardClicks
     }
 
     var hasAnyActivity: Bool {
         return keyPresses > 0 ||
             leftClicks > 0 ||
             rightClicks > 0 ||
+            sideBackClicks > 0 ||
+            sideForwardClicks > 0 ||
             mouseDistance > 0 ||
             scrollDistance > 0 ||
             !keyPressCounts.isEmpty ||
@@ -133,6 +153,8 @@ struct AllTimeStats {
     var totalKeyPresses: Int
     var totalLeftClicks: Int
     var totalRightClicks: Int
+    var totalSideBackClicks: Int
+    var totalSideForwardClicks: Int
     var totalMouseDistance: Double
     var totalScrollDistance: Double
     var keyPressCounts: [String: Int]
@@ -148,7 +170,7 @@ struct AllTimeStats {
     var clickActiveDays: Int
     
     var totalClicks: Int {
-        return totalLeftClicks + totalRightClicks
+        return totalLeftClicks + totalRightClicks + totalSideBackClicks + totalSideForwardClicks
     }
 
     /// 纠错率 (Delete + ForwardDelete / Total Keys)
@@ -188,6 +210,8 @@ struct AllTimeStats {
             totalKeyPresses: 0,
             totalLeftClicks: 0,
             totalRightClicks: 0,
+            totalSideBackClicks: 0,
+            totalSideForwardClicks: 0,
             totalMouseDistance: 0,
             totalScrollDistance: 0,
             keyPressCounts: [:],
@@ -500,6 +524,34 @@ class StatsManager {
         if let appIdentity = appIdentity {
             updateAppStats(for: appIdentity) { stats in
                 stats.recordRightClick()
+            }
+        }
+        registerInputEvent()
+        notifyMenuBarUpdate()
+        notifyStatsUpdate()
+        notifyClickThresholdIfNeeded()
+    }
+
+    func incrementSideBackClicks(appIdentity: AppIdentity? = nil) {
+        ensureCurrentDay()
+        currentStats.sideBackClicks += 1
+        if let appIdentity = appIdentity {
+            updateAppStats(for: appIdentity) { stats in
+                stats.recordSideBackClick()
+            }
+        }
+        registerInputEvent()
+        notifyMenuBarUpdate()
+        notifyStatsUpdate()
+        notifyClickThresholdIfNeeded()
+    }
+
+    func incrementSideForwardClicks(appIdentity: AppIdentity? = nil) {
+        ensureCurrentDay()
+        currentStats.sideForwardClicks += 1
+        if let appIdentity = appIdentity {
+            updateAppStats(for: appIdentity) { stats in
+                stats.recordSideForwardClick()
             }
         }
         registerInputEvent()
@@ -940,6 +992,8 @@ class StatsManager {
         merged.keyPresses = safeAdd(lhs.keyPresses, rhs.keyPresses)
         merged.leftClicks = safeAdd(lhs.leftClicks, rhs.leftClicks)
         merged.rightClicks = safeAdd(lhs.rightClicks, rhs.rightClicks)
+        merged.sideBackClicks = safeAdd(lhs.sideBackClicks, rhs.sideBackClicks)
+        merged.sideForwardClicks = safeAdd(lhs.sideForwardClicks, rhs.sideForwardClicks)
         merged.mouseDistance = safeAddDistance(lhs.mouseDistance, rhs.mouseDistance)
         merged.scrollDistance = safeAddDistance(lhs.scrollDistance, rhs.scrollDistance)
         merged.keyPressCounts = mergedCounterMap(lhs.keyPressCounts, rhs.keyPressCounts)
@@ -964,6 +1018,8 @@ class StatsManager {
                 existing.keyPresses = safeAdd(existing.keyPresses, importedStats.keyPresses)
                 existing.leftClicks = safeAdd(existing.leftClicks, importedStats.leftClicks)
                 existing.rightClicks = safeAdd(existing.rightClicks, importedStats.rightClicks)
+                existing.sideBackClicks = safeAdd(existing.sideBackClicks, importedStats.sideBackClicks)
+                existing.sideForwardClicks = safeAdd(existing.sideForwardClicks, importedStats.sideForwardClicks)
                 existing.scrollDistance = safeAddDistance(existing.scrollDistance, importedStats.scrollDistance)
 
                 let importedName = importedStats.displayName.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -1005,6 +1061,8 @@ class StatsManager {
         normalized.keyPresses = max(0, normalized.keyPresses)
         normalized.leftClicks = max(0, normalized.leftClicks)
         normalized.rightClicks = max(0, normalized.rightClicks)
+        normalized.sideBackClicks = max(0, normalized.sideBackClicks)
+        normalized.sideForwardClicks = max(0, normalized.sideForwardClicks)
         normalized.mouseDistance = normalized.mouseDistance.isFinite ? max(0, normalized.mouseDistance) : 0
         normalized.scrollDistance = normalized.scrollDistance.isFinite ? max(0, normalized.scrollDistance) : 0
         normalized.keyPressCounts = normalized.keyPressCounts.reduce(into: [:]) { partial, entry in
@@ -1031,6 +1089,8 @@ class StatsManager {
             stats.keyPresses = max(0, stats.keyPresses)
             stats.leftClicks = max(0, stats.leftClicks)
             stats.rightClicks = max(0, stats.rightClicks)
+            stats.sideBackClicks = max(0, stats.sideBackClicks)
+            stats.sideForwardClicks = max(0, stats.sideForwardClicks)
             stats.scrollDistance = stats.scrollDistance.isFinite ? max(0, stats.scrollDistance) : 0
             normalized[resolvedBundleId] = stats
         }
@@ -1406,6 +1466,8 @@ extension StatsManager {
         total.totalKeyPresses += daily.keyPresses
         total.totalLeftClicks += daily.leftClicks
         total.totalRightClicks += daily.rightClicks
+        total.totalSideBackClicks += daily.sideBackClicks
+        total.totalSideForwardClicks += daily.sideForwardClicks
         total.totalMouseDistance += daily.mouseDistance
         total.totalScrollDistance += daily.scrollDistance
 
@@ -1417,7 +1479,7 @@ extension StatsManager {
             total.maxDailyKeyPresses = daily.keyPresses
             total.maxDailyKeyPressesDate = daily.date
         }
-        let dailyClicks = daily.leftClicks + daily.rightClicks
+        let dailyClicks = daily.totalClicks
         if dailyClicks > total.maxDailyClicks {
             total.maxDailyClicks = dailyClicks
             total.maxDailyClicksDate = daily.date
@@ -1535,6 +1597,8 @@ extension StatsManager {
             total.keyPresses += appStats.keyPresses
             total.leftClicks += appStats.leftClicks
             total.rightClicks += appStats.rightClicks
+            total.sideBackClicks += appStats.sideBackClicks
+            total.sideForwardClicks += appStats.sideForwardClicks
             total.scrollDistance += appStats.scrollDistance
             totals[bundleId] = total
         }

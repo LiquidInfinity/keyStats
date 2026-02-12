@@ -61,6 +61,8 @@
 "stats.keyPresses" = "键盘敲击";
 "stats.leftClicks" = "左键点击";
 "stats.rightClicks" = "右键点击";
+"stats.sideBackClicks" = "侧键后退";
+"stats.sideForwardClicks" = "侧键前进";
 "stats.mouseDistance" = "鼠标移动";
 "stats.scrollDistance" = "滚动距离";
 

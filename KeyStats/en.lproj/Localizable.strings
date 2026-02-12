@@ -61,6 +61,8 @@
 "stats.keyPresses" = "Key Presses";
 "stats.leftClicks" = "Left Clicks";
 "stats.rightClicks" = "Right Clicks";
+"stats.sideBackClicks" = "Side Back Clicks";
+"stats.sideForwardClicks" = "Side Forward Clicks";
 "stats.mouseDistance" = "Mouse Distance";
 "stats.scrollDistance" = "Scroll Distance";
 
