@@ -86,6 +86,11 @@
 
 "button.reset" = "Reset Stats";
 "button.checkUpdates" = "Update Now";
+"update.notice.title" = "Before You Update";
+"update.notice.message" = "On unsigned builds, the first automatic update may fail. Enable KeyStats in System Settings > Privacy & Security > App Management first.\n\nIf it already failed, click the system authorization notification, turn on the toggle in Settings, and retry the update.";
+"update.notice.continue" = "Continue Update";
+"update.notice.cancel" = "Cancel";
+"update.notice.suppress" = "Don't show again";
 "button.importData" = "Import Data";
 "button.exportData" = "Export Data";
 "button.quit" = "Quit";

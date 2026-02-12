@@ -86,6 +86,11 @@
 
 "button.reset" = "重置统计";
 "button.checkUpdates" = "立即更新";
+"update.notice.title" = "更新前提示";
+"update.notice.message" = "未签名版本首次自动更新可能失败。请先在“系统设置 > 隐私与安全性 > App 管理”开启 KeyStats。\n\n如果已失败，可点击系统授权通知进入设置打开开关，再重试更新。";
+"update.notice.continue" = "继续更新";
+"update.notice.cancel" = "取消";
+"update.notice.suppress" = "下次不再提示";
 "button.importData" = "数据导入";
 "button.exportData" = "数据导出";
 "button.quit" = "退出应用";

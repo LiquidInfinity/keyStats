@@ -20,6 +20,7 @@ private func resolvedCGColor(_ color: NSColor, alpha: CGFloat, for view: NSView)
 
 /// 统计详情弹出视图控制器
 class StatsPopoverViewController: NSViewController {
+    private let updatePermissionNoticeSuppressedKey = "update.permissionNoticeSuppressed"
     
     // MARK: - UI 组件
     private var containerView: NSView!
@@ -745,6 +746,7 @@ class StatsPopoverViewController: NSViewController {
     }
 
     @objc private func checkForUpdates() {
+        guard showUpdatePermissionNoticeIfNeeded() else { return }
         UpdateManager.shared.checkForUpdates()
     }
     
@@ -755,6 +757,30 @@ class StatsPopoverViewController: NSViewController {
     private func openAccessibilitySettings() {
         let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility")!
         NSWorkspace.shared.open(url)
+    }
+
+    private func showUpdatePermissionNoticeIfNeeded() -> Bool {
+        guard !UserDefaults.standard.bool(forKey: updatePermissionNoticeSuppressedKey) else {
+            return true
+        }
+
+        let alert = NSAlert()
+        if let appIcon = NSApp.applicationIconImage {
+            alert.icon = appIcon
+        }
+        alert.messageText = NSLocalizedString("update.notice.title", comment: "")
+        alert.informativeText = NSLocalizedString("update.notice.message", comment: "")
+        alert.alertStyle = .informational
+        alert.showsSuppressionButton = true
+        alert.suppressionButton?.title = NSLocalizedString("update.notice.suppress", comment: "")
+        alert.addButton(withTitle: NSLocalizedString("update.notice.continue", comment: ""))
+        alert.addButton(withTitle: NSLocalizedString("update.notice.cancel", comment: ""))
+
+        let response = alert.runModal()
+        if alert.suppressionButton?.state == .on {
+            UserDefaults.standard.set(true, forKey: updatePermissionNoticeSuppressedKey)
+        }
+        return response == .alertFirstButtonReturn
     }
 }
 

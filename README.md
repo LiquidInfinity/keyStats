@@ -82,6 +82,8 @@ KeyStats requires **Accessibility permissions** to monitor keyboard and mouse ev
 > **Note**: Without granting permissions, the app will not be able to track any data.
 >
 > **Reinstall/upgrade tip**: Because the app is not signed, macOS will not automatically update Accessibility authorization after each reinstall. Remove the existing KeyStats entry in "Privacy & Security" > "Accessibility", then return to the app and click the "Get Permission" button to request access again.
+>
+> **Auto-update tip (unsigned builds, macOS Ventura+)**: The first Sparkle update may fail. Enable KeyStats in "Privacy & Security" > "App Management" first. If it already failed, click the system authorization notification, turn on the toggle in Settings, and click "Update Now" again.
 
 ### Windows
 
