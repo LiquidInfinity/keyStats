@@ -82,7 +82,7 @@
 "history.empty" = "No Data";
 
 "button.reset" = "Reset Stats";
-"button.checkUpdates" = "Check Updates";
+"button.checkUpdates" = "Update Now";
 "button.importData" = "Import Data";
 "button.exportData" = "Export Data";
 "button.quit" = "Quit";

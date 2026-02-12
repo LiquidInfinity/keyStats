@@ -82,7 +82,7 @@
 "history.empty" = "无数据";
 
 "button.reset" = "重置统计";
-"button.checkUpdates" = "检查更新";
+"button.checkUpdates" = "立即更新";
 "button.importData" = "数据导入";
 "button.exportData" = "数据导出";
 "button.quit" = "退出应用";
