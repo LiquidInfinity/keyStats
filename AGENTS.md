@@ -446,3 +446,7 @@ let lastResetDateKey = "lastResetDate"
 2. Keep singleton patterns intact
 3. Preserve thread safety
 4. Update all UI references if changing data models
+
+### Git Commit Attribution
+1. For every `git commit`, append this trailer at the end of the commit message:
+   `Co-authored-by: chatgpt-codex-connector[bot] <199175422+chatgpt-codex-connector[bot]@users.noreply.github.com>`
