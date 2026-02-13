@@ -203,7 +203,16 @@ final class SettingsViewController: NSViewController, NSTextFieldDelegate {
         headerSubtitleLabel.font = NSFont.systemFont(ofSize: 12)
         headerSubtitleLabel.textColor = .secondaryLabelColor
 
-        let headerTextStack = NSStackView(views: [headerTitleLabel, headerSubtitleLabel])
+        let versionString: String = {
+            let version = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "–"
+            let build = Bundle.main.infoDictionary?["CFBundleVersion"] as? String ?? "–"
+            return "v\(version) (\(build))"
+        }()
+        let versionLabel = NSTextField(labelWithString: versionString)
+        versionLabel.font = NSFont.monospacedDigitSystemFont(ofSize: 11, weight: .regular)
+        versionLabel.textColor = .tertiaryLabelColor
+
+        let headerTextStack = NSStackView(views: [headerTitleLabel, headerSubtitleLabel, versionLabel])
         headerTextStack.orientation = .vertical
         headerTextStack.alignment = .leading
         headerTextStack.spacing = 2
