@@ -82,20 +82,62 @@ public class StatsManager : IDisposable
         monitor.MouseScrolled += OnMouseScrolled;
     }
 
-    private void UpdateAppStats(string appName, Action<AppStats> updateAction)
+    private void UpdateAppStats(string appName, string displayName, Action<AppStats> updateAction)
     {
-        if (string.IsNullOrEmpty(appName)) return;
+        if (string.IsNullOrWhiteSpace(appName)) return;
 
-        if (!CurrentStats.AppStats.TryGetValue(appName, out var appStats))
+        var normalizedAppName = appName.Trim();
+        var normalizedDisplayName = NormalizeDisplayName(normalizedAppName, displayName);
+
+        if (!CurrentStats.AppStats.TryGetValue(normalizedAppName, out var appStats))
         {
-            appStats = new AppStats(appName);
-            CurrentStats.AppStats[appName] = appStats;
+            appStats = new AppStats(normalizedAppName, normalizedDisplayName);
+            CurrentStats.AppStats[normalizedAppName] = appStats;
         }
-        
+        else if (ShouldUpdateDisplayName(appStats, normalizedDisplayName))
+        {
+            appStats.DisplayName = normalizedDisplayName;
+        }
+
         updateAction(appStats);
     }
 
-    private void OnKeyPressed(string keyName, string appName)
+    private static string NormalizeDisplayName(string appName, string displayName)
+    {
+        if (string.IsNullOrWhiteSpace(displayName))
+        {
+            return appName;
+        }
+
+        var normalizedDisplay = displayName.Trim();
+        return string.Equals(normalizedDisplay, "Unknown", StringComparison.OrdinalIgnoreCase)
+            ? appName
+            : normalizedDisplay;
+    }
+
+    private static bool ShouldUpdateDisplayName(AppStats appStats, string incomingDisplayName)
+    {
+        if (string.IsNullOrWhiteSpace(incomingDisplayName))
+        {
+            return false;
+        }
+
+        if (string.Equals(appStats.DisplayName, incomingDisplayName, StringComparison.OrdinalIgnoreCase))
+        {
+            return false;
+        }
+
+        if (string.IsNullOrWhiteSpace(appStats.DisplayName))
+        {
+            return true;
+        }
+
+        // Prefer richer labels over raw process names (e.g. javaw -> Minecraft).
+        return string.Equals(appStats.DisplayName, appStats.AppName, StringComparison.OrdinalIgnoreCase) &&
+               !string.Equals(incomingDisplayName, appStats.AppName, StringComparison.OrdinalIgnoreCase);
+    }
+
+    private void OnKeyPressed(string keyName, string appName, string displayName)
     {
         lock (_lock)
         {
@@ -109,59 +151,59 @@ public class StatsManager : IDisposable
                 }
                 CurrentStats.KeyPressCounts[keyName]++;
             }
-            UpdateAppStats(appName, stats => stats.RecordKeyPress());
+            UpdateAppStats(appName, displayName, stats => stats.RecordKeyPress());
         }
 
         NotifyStatsUpdate();
         NotifyKeyPressThresholdIfNeeded();
     }
 
-    private void OnLeftClick(string appName)
+    private void OnLeftClick(string appName, string displayName)
     {
         lock (_lock)
         {
             EnsureCurrentDay();
             CurrentStats.LeftClicks++;
-            UpdateAppStats(appName, stats => stats.RecordLeftClick());
+            UpdateAppStats(appName, displayName, stats => stats.RecordLeftClick());
         }
 
         NotifyStatsUpdate();
         NotifyClickThresholdIfNeeded();
     }
 
-    private void OnRightClick(string appName)
+    private void OnRightClick(string appName, string displayName)
     {
         lock (_lock)
         {
             EnsureCurrentDay();
             CurrentStats.RightClicks++;
-            UpdateAppStats(appName, stats => stats.RecordRightClick());
+            UpdateAppStats(appName, displayName, stats => stats.RecordRightClick());
         }
 
         NotifyStatsUpdate();
         NotifyClickThresholdIfNeeded();
     }
 
-    private void OnSideBackClick(string appName)
+    private void OnSideBackClick(string appName, string displayName)
     {
         lock (_lock)
         {
             EnsureCurrentDay();
             CurrentStats.SideBackClicks++;
-            UpdateAppStats(appName, stats => stats.RecordSideBackClick());
+            UpdateAppStats(appName, displayName, stats => stats.RecordSideBackClick());
         }
 
         NotifyStatsUpdate();
         NotifyClickThresholdIfNeeded();
     }
 
-    private void OnSideForwardClick(string appName)
+    private void OnSideForwardClick(string appName, string displayName)
     {
         lock (_lock)
         {
             EnsureCurrentDay();
             CurrentStats.SideForwardClicks++;
-            UpdateAppStats(appName, stats => stats.RecordSideForwardClick());
+            UpdateAppStats(appName, displayName, stats => stats.RecordSideForwardClick());
         }
 
         NotifyStatsUpdate();
@@ -180,13 +222,13 @@ public class StatsManager : IDisposable
         ScheduleSave();
     }
 
-    private void OnMouseScrolled(double distance, string appName)
+    private void OnMouseScrolled(double distance, string appName, string displayName)
     {
         lock (_lock)
         {
             EnsureCurrentDay();
             CurrentStats.ScrollDistance += Math.Abs(distance);
-            UpdateAppStats(appName, stats => stats.AddScrollDistance(Math.Abs(distance)));
+            UpdateAppStats(appName, displayName, stats => stats.AddScrollDistance(Math.Abs(distance)));
         }
 
         ScheduleDebouncedStatsUpdate();
