@@ -244,10 +244,10 @@ public partial class StatsPopupWindow : Window
         var workingArea = screen.WorkingArea;
         var screenBounds = screen.Bounds;
         
-        // DPI 缩放因子
-        var dpiScale = PresentationSource.FromVisual(this)?.CompositionTarget?.TransformToDevice.M11 ?? 1.0;
-        var windowWidth = Width * dpiScale;
-        var windowHeight = Height * dpiScale;
+        // DPI 缩放因子（独立处理 X/Y，兼容非等比 DPI）
+        var transformToDevice = PresentationSource.FromVisual(this)?.CompositionTarget?.TransformToDevice;
+        var dpiScaleX = transformToDevice?.M11 ?? 1.0;
+        var dpiScaleY = transformToDevice?.M22 ?? dpiScaleX;
 
         // 确定任务栏位置
         bool taskbarAtBottom = workingArea.Bottom < screenBounds.Bottom;
@@ -258,6 +258,22 @@ public partial class StatsPopupWindow : Window
         // 系统托盘区域预留空间（避免遮挡图标）
         const int trayAreaWidth = 250; // 系统托盘区域宽度（右侧）
         const int spacing = 10; // 窗口与鼠标/任务栏的最小间距
+
+        // 避免高缩放下窗口超出工作区：先按当前屏幕可用高度约束窗口，再读取实际尺寸参与定位
+        var maxHeightDip = Math.Max(200, (workingArea.Height - spacing * 2) / dpiScaleY);
+        if (Math.Abs(MaxHeight - maxHeightDip) > 0.5)
+        {
+            MaxHeight = maxHeightDip;
+            UpdateLayout();
+        }
+
+        var windowWidthDip = ActualWidth > 0 ? ActualWidth : Width;
+        var windowHeightDip = ActualHeight > 0 ? ActualHeight : Height;
+        if (double.IsNaN(windowWidthDip) || windowWidthDip <= 0) windowWidthDip = 360;
+        if (double.IsNaN(windowHeightDip) || windowHeightDip <= 0) windowHeightDip = 600;
+
+        var windowWidth = windowWidthDip * dpiScaleX;
+        var windowHeight = windowHeightDip * dpiScaleY;
 
         double left, top;
 
@@ -321,7 +337,7 @@ public partial class StatsPopupWindow : Window
             top = workingArea.Bottom - windowHeight - spacing;
 
         // 转换为 WPF 坐标（考虑 DPI）
-        Left = left / dpiScale;
-        Top = top / dpiScale;
+        Left = left / dpiScaleX;
+        Top = top / dpiScaleY;
     }
 }
