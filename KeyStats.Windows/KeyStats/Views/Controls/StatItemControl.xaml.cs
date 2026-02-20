@@ -39,6 +39,10 @@ public partial class StatItemControl : System.Windows.Controls.UserControl
     public StatItemControl()
     {
         InitializeComponent();
+        // Ensure initial values are rendered even when bindings resolve to defaults.
+        IconText.Text = Icon ?? "";
+        TitleText.Text = Title ?? "";
+        ValueText.Text = NormalizeDisplayValue(Value);
     }
 
     private static void OnIconChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
@@ -61,7 +65,12 @@ public partial class StatItemControl : System.Windows.Controls.UserControl
     {
         if (d is StatItemControl control)
         {
-            control.ValueText.Text = e.NewValue as string ?? "0";
+            control.ValueText.Text = NormalizeDisplayValue(e.NewValue as string);
         }
+    }
+
+    private static string NormalizeDisplayValue(string? value)
+    {
+        return string.IsNullOrWhiteSpace(value) ? "0" : value ?? "0";
     }
 }

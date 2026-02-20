@@ -100,7 +100,13 @@ public static class ActiveWindowManager
 
     private static string NormalizeProcessName(string? processName)
     {
-        return string.IsNullOrWhiteSpace(processName) ? "Unknown" : processName.Trim();
+        var normalized = processName?.Trim();
+        if (string.IsNullOrWhiteSpace(normalized))
+        {
+            return "Unknown";
+        }
+
+        return normalized ?? "Unknown";
     }
 
     private static string GetFileDisplayName(Process process, string processName)
@@ -185,9 +191,9 @@ public static class ActiveWindowManager
             }
         }
 
-        var segment = cutIndex > 0 ? normalized[..cutIndex].Trim() : normalized;
+        var segment = cutIndex > 0 ? normalized.Substring(0, cutIndex).Trim() : normalized;
 
-        if (segment.Length is < 2 or > 64)
+        if (segment.Length < 2 || segment.Length > 64)
         {
             return string.Empty;
         }
@@ -204,23 +210,25 @@ public static class ActiveWindowManager
 
     private static bool IsPreferredDisplayName(string? candidate, string processName)
     {
-        if (string.IsNullOrWhiteSpace(candidate))
+        var trimmed = candidate?.Trim();
+        if (string.IsNullOrWhiteSpace(trimmed))
         {
             return false;
         }
 
-        var trimmed = candidate.Trim();
-        if (string.Equals(trimmed, processName, StringComparison.OrdinalIgnoreCase))
+        var normalized = trimmed!;
+
+        if (string.Equals(normalized, processName, StringComparison.OrdinalIgnoreCase))
         {
             return false;
         }
 
-        if (string.Equals(trimmed, "Unknown", StringComparison.OrdinalIgnoreCase))
+        if (string.Equals(normalized, "Unknown", StringComparison.OrdinalIgnoreCase))
         {
             return false;
         }
 
-        return !GenericDisplayNames.Contains(trimmed);
+        return !GenericDisplayNames.Contains(normalized);
     }
 
     private static string GetWindowTitle(IntPtr windowHandle)
