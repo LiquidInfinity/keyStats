@@ -20,7 +20,12 @@ private func resolvedCGColor(_ color: NSColor, alpha: CGFloat, for view: NSView)
 
 /// 统计详情弹出视图控制器
 class StatsPopoverViewController: NSViewController {
+    var preferredSizeDidChange: ((NSSize) -> Void)?
+
     private let updatePermissionNoticeSuppressedKey = "update.permissionNoticeSuppressed"
+    private let popoverContentWidth: CGFloat = 360
+    private let keyBreakdownGridHeight: CGFloat = 124
+    private let chartHeight: CGFloat = 140
     
     // MARK: - UI 组件
     private var containerView: NSView!
@@ -81,6 +86,7 @@ class StatsPopoverViewController: NSViewController {
         setupUI()
         updateStats()
         updateAppearance()
+        updatePreferredPopoverSizeIfNeeded()
         appearanceObservation = NSApp.observe(\.effectiveAppearance, options: [.new]) { [weak self] _, _ in
             DispatchQueue.main.async {
                 self?.updateAppearance()
@@ -99,12 +105,18 @@ class StatsPopoverViewController: NSViewController {
         super.viewDidAppear()
         focusPrimaryControl()
         updateAppearance()
+        updatePreferredPopoverSizeIfNeeded()
     }
 
     override func viewWillDisappear() {
         super.viewWillDisappear()
         stopLiveUpdates()
         stopUpdateAvailabilityUpdates()
+    }
+
+    override func viewDidLayout() {
+        super.viewDidLayout()
+        updatePreferredPopoverSizeIfNeeded()
     }
     
     deinit {
@@ -158,14 +170,20 @@ class StatsPopoverViewController: NSViewController {
         clickRow.spacing = 16
         clickRow.distribution = .fillEqually
         clickRow.alignment = .centerY
+        clickRow.setContentHuggingPriority(.required, for: .vertical)
+        clickRow.setContentCompressionResistancePriority(.required, for: .vertical)
         clickRow.translatesAutoresizingMaskIntoConstraints = false
+        clickRow.heightAnchor.constraint(equalTo: leftClickView.heightAnchor).isActive = true
 
         sideClickRow = NSStackView(views: [sideBackClickView, sideForwardClickView])
         sideClickRow.orientation = .horizontal
         sideClickRow.spacing = 16
         sideClickRow.distribution = .fillEqually
         sideClickRow.alignment = .centerY
+        sideClickRow.setContentHuggingPriority(.required, for: .vertical)
+        sideClickRow.setContentCompressionResistancePriority(.required, for: .vertical)
         sideClickRow.translatesAutoresizingMaskIntoConstraints = false
+        sideClickRow.heightAnchor.constraint(equalTo: sideBackClickView.heightAnchor).isActive = true
 
         let isChinese = Locale.current.language.languageCode?.identifier == "zh"
 
@@ -176,7 +194,10 @@ class StatsPopoverViewController: NSViewController {
             distanceRow.spacing = 16
             distanceRow.distribution = .fillEqually
             distanceRow.alignment = .centerY
+            distanceRow.setContentHuggingPriority(.required, for: .vertical)
+            distanceRow.setContentCompressionResistancePriority(.required, for: .vertical)
             distanceRow.translatesAutoresizingMaskIntoConstraints = false
+            distanceRow.heightAnchor.constraint(equalTo: mouseDistanceView.heightAnchor).isActive = true
 
             statsStackView = NSStackView(views: [
                 keyPressView,
@@ -195,8 +216,11 @@ class StatsPopoverViewController: NSViewController {
             ])
         }
         statsStackView.orientation = .vertical
+        statsStackView.distribution = .fill
         statsStackView.spacing = 8
         statsStackView.detachesHiddenViews = true
+        statsStackView.setContentHuggingPriority(.required, for: .vertical)
+        statsStackView.setContentCompressionResistancePriority(.required, for: .vertical)
         statsStackView.translatesAutoresizingMaskIntoConstraints = false
         containerView.addSubview(statsStackView)
         
@@ -521,18 +545,28 @@ class StatsPopoverViewController: NSViewController {
     
     private func updateStats() {
         let stats = StatsManager.shared.currentStats
+        let hasSideClickData = (stats.sideBackClicks + stats.sideForwardClicks) > 0
         
         keyPressView.updateValue(formatNumber(stats.keyPresses))
         leftClickView.updateValue(formatNumber(stats.leftClicks))
         rightClickView.updateValue(formatNumber(stats.rightClicks))
         sideBackClickView.updateValue(formatNumber(stats.sideBackClicks))
         sideForwardClickView.updateValue(formatNumber(stats.sideForwardClicks))
-        sideClickRow.isHidden = (stats.sideBackClicks + stats.sideForwardClicks) == 0
+        applySideClickRowVisibility(hasSideClickData)
         mouseDistanceView.updateValue(stats.formattedMouseDistance)
         scrollDistanceView.updateValue(stats.formattedScrollDistance)
         updateKeyBreakdown()
         updateHistorySection()
         updatePermissionButtonVisibility()
+        updatePreferredPopoverSizeIfNeeded()
+    }
+
+    func prepareForPopoverPresentation() {
+        if !isViewLoaded {
+            _ = view
+        }
+        updateStats()
+        updatePreferredPopoverSizeIfNeeded()
     }
 
     private func startLiveUpdates() {
@@ -783,6 +817,66 @@ class StatsPopoverViewController: NSViewController {
         }
         return response == .alertFirstButtonReturn
     }
+
+    private func applySideClickRowVisibility(_ shouldShow: Bool) {
+        let hasRow = statsStackView.arrangedSubviews.contains(sideClickRow)
+        if shouldShow {
+            guard !hasRow else { return }
+            let insertIndex = min(2, statsStackView.arrangedSubviews.count)
+            statsStackView.insertArrangedSubview(sideClickRow, at: insertIndex)
+            sideClickRow.isHidden = false
+            return
+        }
+
+        guard hasRow else { return }
+        statsStackView.removeArrangedSubview(sideClickRow)
+        sideClickRow.removeFromSuperview()
+    }
+
+    private func updatePreferredPopoverSizeIfNeeded() {
+        guard isViewLoaded else { return }
+        view.layoutSubtreeIfNeeded()
+
+        let statsRows = statsStackView.arrangedSubviews
+        let statsRowsHeight = statsRows.reduce(CGFloat.zero) { partialResult, row in
+            partialResult + row.fittingSize.height
+        }
+        let statsSpacing = CGFloat(max(0, statsRows.count - 1)) * statsStackView.spacing
+
+        let footerHeight = max(
+            settingsButton.fittingSize.height,
+            appStatsButton.fittingSize.height,
+            allTimeStatsButton.fittingSize.height,
+            quitButton.fittingSize.height,
+            checkUpdatesButton.isHidden ? 0 : checkUpdatesButton.fittingSize.height
+        )
+
+        let computedHeight =
+            16 + titleLabel.fittingSize.height +
+            12 + // title -> separator
+            12 + // separator -> stats stack
+            statsRowsHeight + statsSpacing +
+            16 + // stats stack -> key breakdown title
+            keyBreakdownTitleLabel.fittingSize.height +
+            8 + // key breakdown title -> grid
+            keyBreakdownGridHeight +
+            16 + // grid -> history title
+            historyTitleLabel.fittingSize.height +
+            8 + rangeControl.fittingSize.height +
+            8 + metricControl.fittingSize.height +
+            8 + chartStyleControl.fittingSize.height +
+            8 + chartHeight +
+            6 + historySummaryLabel.fittingSize.height +
+            16 + // summary -> bottom separator
+            12 + // bottom separator -> footer
+            footerHeight +
+            16   // footer -> container bottom
+
+        let targetSize = NSSize(width: popoverContentWidth, height: ceil(computedHeight))
+        guard preferredContentSize != targetSize else { return }
+        preferredContentSize = targetSize
+        preferredSizeDidChange?(targetSize)
+    }
 }
 
 // MARK: - 统计项动画数值
@@ -867,6 +961,8 @@ class StatItemView: NSView {
     
     private func setupUI(icon: String, title: String, value: String) {
         translatesAutoresizingMaskIntoConstraints = false
+        setContentHuggingPriority(.required, for: .vertical)
+        setContentCompressionResistancePriority(.required, for: .vertical)
         
         // 图标
         iconLabel = NSTextField(labelWithString: icon)

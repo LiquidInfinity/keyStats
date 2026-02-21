@@ -79,10 +79,15 @@ class MenuBarController {
     
     private func setupPopover() {
         popover = NSPopover()
-        popover.contentSize = NSSize(width: 320, height: 640)
         popover.behavior = .transient
         popover.animates = true
-        popover.contentViewController = StatsPopoverViewController()
+        let statsPopoverViewController = StatsPopoverViewController()
+        statsPopoverViewController.preferredSizeDidChange = { [weak self] targetSize in
+            self?.popover.contentSize = targetSize
+        }
+        popover.contentViewController = statsPopoverViewController
+        statsPopoverViewController.prepareForPopoverPresentation()
+        popover.contentSize = statsPopoverViewController.preferredContentSize
     }
     
     // MARK: - 设置事件监听（点击外部关闭弹窗）
@@ -122,6 +127,11 @@ class MenuBarController {
     private func showPopover() {
         // 先激活应用，确保弹窗可以接收焦点
         NSApp.activate(ignoringOtherApps: true)
+
+        if let statsPopoverViewController = popover.contentViewController as? StatsPopoverViewController {
+            statsPopoverViewController.prepareForPopoverPresentation()
+            popover.contentSize = statsPopoverViewController.preferredContentSize
+        }
 
         if let button = statusItem.button {
             popover.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
