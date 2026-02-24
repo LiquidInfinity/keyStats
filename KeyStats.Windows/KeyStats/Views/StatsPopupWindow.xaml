@@ -82,7 +82,15 @@
             </Grid>
 
             <!-- Key Breakdown -->
-            <TextBlock Text="按键分布" Style="{DynamicResource SectionTitle}" Margin="4,8,0,6"/>
+            <Grid Margin="4,8,0,6">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+                <TextBlock Grid.Column="0" Text="按键分布" Style="{DynamicResource SectionTitle}" Margin="0" VerticalAlignment="Center"/>
+                <Button Grid.Column="1" Content="键盘热力图" Style="{DynamicResource GhostButton}"
+                        Click="OpenKeyboardHeatmap_Click" Padding="12,5"/>
+            </Grid>
             <Border Style="{DynamicResource CardBorder}" Padding="8,6" Margin="0,0,0,6">
                 <controls:KeyBreakdownControl
                     Column1Items="{Binding Column1Items}"
@@ -95,12 +103,9 @@
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="*"/>
                     <ColumnDefinition Width="Auto"/>
-                    <ColumnDefinition Width="Auto"/>
                 </Grid.ColumnDefinitions>
                 <TextBlock Grid.Column="0" Text="活跃应用" Style="{DynamicResource SectionTitle}" Margin="0" VerticalAlignment="Center"/>
-                <Button Grid.Column="1" Content="键盘热力图" Style="{DynamicResource GhostButton}"
-                        Click="OpenKeyboardHeatmap_Click" Padding="12,5" Margin="0,0,8,0"/>
-                <Button Grid.Column="2" Content="应用统计详情" Style="{DynamicResource GhostButton}"
+                <Button Grid.Column="1" Content="应用统计详情" Style="{DynamicResource GhostButton}"
                         Click="OpenAppStats_Click" Padding="12,5"/>
             </Grid>
             <Border Style="{DynamicResource CardBorder}" Padding="8,6" Margin="0,0,0,6">

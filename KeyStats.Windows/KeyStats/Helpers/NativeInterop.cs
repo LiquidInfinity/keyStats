@@ -142,4 +142,25 @@ public static class NativeInterop
 
     [DllImport("user32.dll", SetLastError = true)]
     public static extern int GetWindowTextLength(IntPtr hWnd);
+
+    [DllImport("dwmapi.dll", PreserveSig = true)]
+    private static extern int DwmSetWindowAttribute(IntPtr hwnd, int dwAttribute, ref int pvAttribute, int cbAttribute);
+
+    private const int DWMWA_USE_IMMERSIVE_DARK_MODE = 20;
+    private const int DWMWA_USE_IMMERSIVE_DARK_MODE_FALLBACK = 19;
+
+    public static void TrySetImmersiveDarkMode(IntPtr hwnd, bool enabled)
+    {
+        if (hwnd == IntPtr.Zero)
+        {
+            return;
+        }
+
+        var useDarkMode = enabled ? 1 : 0;
+        var result = DwmSetWindowAttribute(hwnd, DWMWA_USE_IMMERSIVE_DARK_MODE, ref useDarkMode, sizeof(int));
+        if (result != 0)
+        {
+            DwmSetWindowAttribute(hwnd, DWMWA_USE_IMMERSIVE_DARK_MODE_FALLBACK, ref useDarkMode, sizeof(int));
+        }
+    }
 }

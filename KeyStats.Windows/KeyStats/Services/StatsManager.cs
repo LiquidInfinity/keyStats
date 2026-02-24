@@ -1096,8 +1096,7 @@ public class StatsManager : IDisposable
 
             foreach (var sourceKey in components)
             {
-                var normalizedKey = NormalizeKeyboardHeatmapKey(sourceKey);
-                if (string.IsNullOrWhiteSpace(normalizedKey))
+                if (NormalizeKeyboardHeatmapKey(sourceKey) is not string normalizedKey || string.IsNullOrWhiteSpace(normalizedKey))
                 {
                     continue;
                 }
@@ -1187,6 +1186,10 @@ public class StatsManager : IDisposable
             case "FN":
             case "FUNCTION":
                 return "Fn";
+            case "APPS":
+            case "APPLICATION":
+            case "CONTEXTMENU":
+                return "Apps";
             case "SPACE":
             case "SPACEBAR":
                 return "Space";
@@ -1199,16 +1202,24 @@ public class StatsManager : IDisposable
             case "TAB":
                 return "Tab";
             case "BACKSPACE":
-                return "Delete";
+            case "BKSP":
+                return "Backspace";
             case "DELETE":
             case "DEL":
             case "FORWARDDELETE":
                 return "Delete";
+            case "INSERT":
+            case "INS":
+                return "Insert";
             case "CAPSLOCK":
                 return "CapsLock";
             case "PAGEUP":
+            case "PGUP":
+            case "PRIOR":
                 return "PageUp";
             case "PAGEDOWN":
+            case "PGDN":
+            case "NEXT":
                 return "PageDown";
             case "HOME":
                 return "Home";

@@ -106,8 +106,7 @@
                         <TranslateTransform x:Name="CurrentLayerTransform"/>
                     </Grid.RenderTransform>
 
-                    <controls:KeyboardHeatmapControl x:Name="KeyboardHeatmapView"
-                                                     MinHeight="320"/>
+                    <controls:KeyboardHeatmapControl x:Name="KeyboardHeatmapView"/>
 
                     <Border x:Name="EmptyOverlay"
                             Background="{DynamicResource SurfaceBrush}"

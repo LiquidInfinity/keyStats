@@ -420,7 +420,7 @@ public class KeyboardHeatmapControl : FrameworkElement
         const double rowGap = keyGap;
         var rowStep = 1.0 + rowGap;
         var functionClusterGap = keyGap;
-        var deleteWidth = 2.38 - keyGap;
+        var backspaceWidth = 2.38 - keyGap;
         var backslashWidth = 1.93 - keyGap;
         var rightShiftWidth = 2.93 + keyGap;
 
@@ -437,7 +437,7 @@ public class KeyboardHeatmapControl : FrameworkElement
         }
 
         var functionKeys = new[] { "F1", "F2", "F3", "F4", "F5", "F6", "F7", "F8", "F9", "F10", "F11", "F12" };
-        var numberRowWidths = Enumerable.Repeat(1.0, 13).Concat(new[] { deleteWidth }).ToArray();
+        var numberRowWidths = Enumerable.Repeat(1.0, 13).Concat(new[] { backspaceWidth }).ToArray();
         var keyboardRightEdge = numberRowWidths.Sum() + (numberRowWidths.Length - 1) * keyGap;
 
         var yFunction = 0.0;
@@ -459,7 +459,7 @@ public class KeyboardHeatmapControl : FrameworkElement
         {
             ("`", "~\n`", 1.0), ("1", "!\n1", 1.0), ("2", "@\n2", 1.0), ("3", "#\n3", 1.0), ("4", "$\n4", 1.0),
             ("5", "%\n5", 1.0), ("6", "^\n6", 1.0), ("7", "&\n7", 1.0), ("8", "*\n8", 1.0), ("9", "(\n9", 1.0),
-            ("0", ")\n0", 1.0), ("-", "_\n-", 1.0), ("=", "+\n=", 1.0), ("Delete", "delete", deleteWidth)
+            ("0", ")\n0", 1.0), ("-", "_\n-", 1.0), ("=", "+\n=", 1.0), ("Backspace", "backspace", backspaceWidth)
         });
 
         var y2 = y1 + rowStep;
@@ -488,10 +488,20 @@ public class KeyboardHeatmapControl : FrameworkElement
 
         var y5 = y4 + rowStep;
         var bottomX = 0.0;
+        var leftCtrlWidth = 1.35;
+        var leftWinWidth = 1.3;
+        var leftAltWidth = 1.3;
+        var rightAltWidth = 1.3;
+        var rightWinWidth = 1.3;
+        var rightCtrlWidth = 2.0;
+        var bottomNonSpaceWidth = leftCtrlWidth + leftWinWidth + leftAltWidth + rightAltWidth + rightWinWidth + rightCtrlWidth;
+        var bottomGapCount = 6; // 7 keys on this row => 6 gaps
+        var spaceWidth = Math.Max(3.8, keyboardRightEdge - bottomNonSpaceWidth - bottomGapCount * keyGap);
         var bottomKeys = new[]
         {
-            ("Fn", "fn", 1.0), ("Ctrl", "ctrl", 1.1), ("Option", "alt", 1.1), ("Cmd", "win", 1.3),
-            ("Space", "space", 6.0), ("Cmd", "win", 1.3), ("Option", "alt", 1.1)
+            ("Ctrl", "ctrl", leftCtrlWidth), ("Cmd", "win", leftWinWidth), ("Option", "alt", leftAltWidth),
+            ("Space", "space", spaceWidth), ("Option", "alt", rightAltWidth), ("Cmd", "win", rightWinWidth),
+            ("Ctrl", "ctrl", rightCtrlWidth)
         };
         foreach (var key in bottomKeys)
         {
@@ -499,16 +509,30 @@ public class KeyboardHeatmapControl : FrameworkElement
             bottomX += key.Item3 + keyGap;
         }
 
+        var navKeyWidth = 1.0;
+        var navRowGap = rowGap;
+        var navStepX = navKeyWidth + keyGap;
+        var navColumnGap = 0.55;
+        var navStartX = keyboardRightEdge + navColumnGap;
+        var yNavTop = y1;
+        var yNavBottom = y1 + 1.0 + navRowGap;
+
+        items.Add(new KeySpec("Insert", "ins", new Rect(navStartX, yNavTop, navKeyWidth, 1.0)));
+        items.Add(new KeySpec("Home", "home", new Rect(navStartX + navStepX, yNavTop, navKeyWidth, 1.0)));
+        items.Add(new KeySpec("PageUp", "pg up", new Rect(navStartX + navStepX * 2, yNavTop, navKeyWidth, 1.0)));
+        items.Add(new KeySpec("Delete", "del", new Rect(navStartX, yNavBottom, navKeyWidth, 1.0)));
+        items.Add(new KeySpec("End", "end", new Rect(navStartX + navStepX, yNavBottom, navKeyWidth, 1.0)));
+        items.Add(new KeySpec("PageDown", "pg dn", new Rect(navStartX + navStepX * 2, yNavBottom, navKeyWidth, 1.0)));
+
         var arrowWidth = 1.0;
         var arrowStep = arrowWidth + keyGap;
-        var arrowClusterWidth = arrowStep * 2 + arrowWidth;
-        var arrowStartX = keyboardRightEdge - arrowClusterWidth;
-        const double verticalGap = 0.04;
-        var halfArrowHeight = (1.0 - verticalGap) / 2.0;
-        items.Add(new KeySpec("Left", "left", new Rect(arrowStartX, y5, arrowWidth, 1.0)));
-        items.Add(new KeySpec("Up", "up", new Rect(arrowStartX + arrowStep, y5, arrowWidth, halfArrowHeight)));
-        items.Add(new KeySpec("Down", "down", new Rect(arrowStartX + arrowStep, y5 + halfArrowHeight + verticalGap, arrowWidth, halfArrowHeight)));
-        items.Add(new KeySpec("Right", "right", new Rect(arrowStartX + arrowStep * 2, y5, arrowWidth, 1.0)));
+        var arrowStartX = navStartX;
+        var yArrowTop = y4;
+        var yArrowBottom = y5;
+        items.Add(new KeySpec("Up", "up", new Rect(arrowStartX + arrowStep, yArrowTop, arrowWidth, 1.0)));
+        items.Add(new KeySpec("Left", "left", new Rect(arrowStartX, yArrowBottom, arrowWidth, 1.0)));
+        items.Add(new KeySpec("Down", "down", new Rect(arrowStartX + arrowStep, yArrowBottom, arrowWidth, 1.0)));
+        items.Add(new KeySpec("Right", "right", new Rect(arrowStartX + arrowStep * 2, yArrowBottom, arrowWidth, 1.0)));
 
         return items;
     }
