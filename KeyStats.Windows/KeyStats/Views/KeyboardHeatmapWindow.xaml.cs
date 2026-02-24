@@ -303,33 +303,16 @@ public partial class KeyboardHeatmapWindow : Window
             PreviousSnapshotImage.Source = null;
         }
 
-        var storyboard = new Storyboard();
-
         var incomingX = new DoubleAnimation(incomingOffset, 0, duration) { EasingFunction = easing };
-        Storyboard.SetTarget(incomingX, CurrentLayerTransform);
-        Storyboard.SetTargetProperty(incomingX, new PropertyPath(TranslateTransform.XProperty));
-        storyboard.Children.Add(incomingX);
-
         var incomingOpacity = new DoubleAnimation(0, 1, duration) { EasingFunction = easing };
-        Storyboard.SetTarget(incomingOpacity, CurrentHeatmapLayer);
-        Storyboard.SetTargetProperty(incomingOpacity, new PropertyPath(OpacityProperty));
-        storyboard.Children.Add(incomingOpacity);
 
-        if (previousSnapshot != null)
+        incomingX.Completed += (_, _) =>
         {
-            var outgoingX = new DoubleAnimation(0, outgoingOffset, duration) { EasingFunction = easing };
-            Storyboard.SetTarget(outgoingX, PreviousLayerTransform);
-            Storyboard.SetTargetProperty(outgoingX, new PropertyPath(TranslateTransform.XProperty));
-            storyboard.Children.Add(outgoingX);
+            CurrentLayerTransform.BeginAnimation(TranslateTransform.XProperty, null);
+            CurrentHeatmapLayer.BeginAnimation(UIElement.OpacityProperty, null);
+            PreviousLayerTransform.BeginAnimation(TranslateTransform.XProperty, null);
+            PreviousSnapshotImage.BeginAnimation(UIElement.OpacityProperty, null);
 
-            var outgoingOpacity = new DoubleAnimation(1, 0, duration) { EasingFunction = easing };
-            Storyboard.SetTarget(outgoingOpacity, PreviousSnapshotImage);
-            Storyboard.SetTargetProperty(outgoingOpacity, new PropertyPath(OpacityProperty));
-            storyboard.Children.Add(outgoingOpacity);
-        }
-
-        storyboard.Completed += (_, _) =>
-        {
             PreviousSnapshotImage.Visibility = Visibility.Collapsed;
             PreviousSnapshotImage.Source = null;
             PreviousLayerTransform.X = 0;
@@ -338,6 +321,15 @@ public partial class KeyboardHeatmapWindow : Window
             _isTransitionAnimating = false;
         };
 
-        storyboard.Begin();
+        CurrentLayerTransform.BeginAnimation(TranslateTransform.XProperty, incomingX);
+        CurrentHeatmapLayer.BeginAnimation(UIElement.OpacityProperty, incomingOpacity);
+
+        if (previousSnapshot != null)
+        {
+            var outgoingX = new DoubleAnimation(0, outgoingOffset, duration) { EasingFunction = easing };
+            var outgoingOpacity = new DoubleAnimation(1, 0, duration) { EasingFunction = easing };
+            PreviousLayerTransform.BeginAnimation(TranslateTransform.XProperty, outgoingX);
+            PreviousSnapshotImage.BeginAnimation(UIElement.OpacityProperty, outgoingOpacity);
+        }
     }
 }
