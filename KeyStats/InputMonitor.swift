@@ -118,11 +118,21 @@ class InputMonitor {
     
     // MARK: - 事件处理
     
+    private func getAppIdentity(for event: CGEvent) -> AppIdentity? {
+        return StatsManager.shared.appStatsEnabled ? AppActivityTracker.shared.appIdentity(for: event) : nil
+    }
+
     private func handleEvent(type: CGEventType, event: CGEvent) {
-        let statsManager = StatsManager.shared
-        let appIdentityProvider: () -> AppIdentity? = {
-            statsManager.appStatsEnabled ? AppActivityTracker.shared.appIdentity(for: event) : nil
+        // Optimization: Fast path for mouse moves to avoid allocations
+        switch type {
+        case .mouseMoved, .leftMouseDragged, .rightMouseDragged:
+            handleMouseMove(event: event)
+            return
+        default:
+            break
         }
+
+        let statsManager = StatsManager.shared
         
         switch type {
         case .keyDown:
@@ -133,22 +143,21 @@ class InputMonitor {
                     return
                 }
                 let keyName = keyName(for: event)
-                let appIdentity = appIdentityProvider()
-                statsManager.incrementKeyPresses(keyName: keyName, appIdentity: appIdentity)
+                statsManager.incrementKeyPresses(keyName: keyName, appIdentity: getAppIdentity(for: event))
             }
             
         case .leftMouseDown:
             if shouldSwapMouseButtons(for: event) {
-                statsManager.incrementRightClicks(appIdentity: appIdentityProvider())
+                statsManager.incrementRightClicks(appIdentity: getAppIdentity(for: event))
             } else {
-                statsManager.incrementLeftClicks(appIdentity: appIdentityProvider())
+                statsManager.incrementLeftClicks(appIdentity: getAppIdentity(for: event))
             }
             
         case .rightMouseDown:
             if shouldSwapMouseButtons(for: event) {
-                statsManager.incrementLeftClicks(appIdentity: appIdentityProvider())
+                statsManager.incrementLeftClicks(appIdentity: getAppIdentity(for: event))
             } else {
-                statsManager.incrementRightClicks(appIdentity: appIdentityProvider())
+                statsManager.incrementRightClicks(appIdentity: getAppIdentity(for: event))
             }
 
         case .otherMouseDown:
@@ -156,16 +165,13 @@ class InputMonitor {
             // Common mapping on macOS: 3 = Back, 4 = Forward.
             // Unknown side buttons are grouped into Back to avoid dropping counts.
             if buttonNumber == 4 {
-                statsManager.incrementSideForwardClicks(appIdentity: appIdentityProvider())
+                statsManager.incrementSideForwardClicks(appIdentity: getAppIdentity(for: event))
             } else {
-                statsManager.incrementSideBackClicks(appIdentity: appIdentityProvider())
+                statsManager.incrementSideBackClicks(appIdentity: getAppIdentity(for: event))
             }
             
-        case .mouseMoved, .leftMouseDragged, .rightMouseDragged:
-            handleMouseMove(event: event)
-            
         case .scrollWheel:
-            handleScroll(event: event, appIdentity: appIdentityProvider())
+            handleScroll(event: event, appIdentity: getAppIdentity(for: event))
             
         default:
             break
