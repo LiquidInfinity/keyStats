@@ -9,6 +9,13 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     private var permissionCheckCount = 0
     private let maxPermissionChecks = 150 // 5分钟后停止（2秒间隔 × 150次）
     private let launchAtLoginPromptedKey = "launchAtLoginPrompted"
+    private var shouldShowAccessibilityPromptOnLaunch: Bool {
+        #if DEBUG
+        return false
+        #else
+        return true
+        #endif
+    }
 
     func applicationDidFinishLaunching(_ aNotification: Notification) {
         // 初始化 PostHog
@@ -53,8 +60,13 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                 self?.checkAndRequestPermission(retryCount: retryCount + 1)
             }
         } else {
-            // 重试后仍无权限，显示提示
-            showPermissionAlert()
+            // Debug 启动时不主动打断开发流程，保留界面中的手动授权入口。
+            if shouldShowAccessibilityPromptOnLaunch {
+                // 重试后仍无权限，显示提示
+                showPermissionAlert()
+            } else {
+                print("开发模式启动：未授予辅助功能权限，跳过启动提示弹窗")
+            }
 
             // 定期检查权限状态（最多5分钟）
             permissionCheckCount = 0
