@@ -1,8 +1,9 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
 using System.Windows;
+using System.Windows.Controls;
 using System.Windows.Interop;
 using System.Windows.Media;
 using System.Windows.Media.Animation;
@@ -27,9 +28,7 @@ public partial class KeyboardHeatmapWindow : Window
     private DateTime _endDate = DateTime.Today;
     private bool _pendingRefresh;
     private bool _isTransitionAnimating;
-
-    private bool IsChineseLocale =>
-        CultureInfo.CurrentUICulture.Name.StartsWith("zh", StringComparison.OrdinalIgnoreCase);
+    private bool _suppressCalendarSelection;
 
     public KeyboardHeatmapWindow()
     {
@@ -95,25 +94,14 @@ public partial class KeyboardHeatmapWindow : Window
 
     private void ApplyLocalizedText()
     {
-        if (IsChineseLocale)
-        {
-            Title = "键盘热力图";
-            TitleText.Text = "键盘热力图";
-            SubtitleText.Text = "按日期查看键盘热区，仅展示聚合计数，不记录输入内容";
-            PrevDayButton.Content = "前一天";
-            NextDayButton.Content = "后一天";
-            BackToTodayButton.Content = "回到今天";
-            EmptyBadgeText.Text = "当天暂无键盘数据";
-            return;
-        }
-
-        Title = "Keyboard Heatmap";
-        TitleText.Text = "Keyboard Heatmap";
-        SubtitleText.Text = "View keyboard hotspots by day using aggregate counts only.";
-        PrevDayButton.Content = "Previous";
-        NextDayButton.Content = "Next";
-        BackToTodayButton.Content = "Back to Today";
-        EmptyBadgeText.Text = "No keyboard activity on this day";
+        Title = "键盘热力图";
+        TitleText.Text = "键盘热力图";
+        SubtitleText.Text = "按日期查看键盘热区，仅展示聚合计数，不记录输入内容";
+        PrevDayButton.Content = "前一天";
+        NextDayButton.Content = "后一天";
+        BackToTodayButton.Content = "回到今天";
+        EmptyBadgeText.Text = "当天暂无键盘数据";
+        DatePickerButton.ToolTip = "选择日期";
     }
 
     private void UpdateAppearance()
@@ -159,31 +147,22 @@ public partial class KeyboardHeatmapWindow : Window
         EmptyBadge.Visibility = hasActivity ? Visibility.Collapsed : Visibility.Visible;
 
         UpdateNavigationState();
+        UpdateDatePickerState();
     }
 
     private string SummaryTemplate()
     {
-        return IsChineseLocale
-            ? "总按键: {0} · 活跃按键: {1}"
-            : "Total keys: {0} · Active keys: {1}";
+        return "总按键: {0} · 活跃按键: {1}";
     }
 
     private string DisplayDateString(DateTime date)
     {
-        if (IsChineseLocale)
-        {
-            if (date.Year == DateTime.Today.Year)
-            {
-                return $"{date.Month}月{date.Day}日";
-            }
-            return $"{date.Year}年{date.Month}月{date.Day}日";
-        }
-
         if (date.Year == DateTime.Today.Year)
         {
-            return date.ToString("M/d", CultureInfo.CurrentCulture);
+            return $"{date.Month}月{date.Day}日";
         }
-        return date.ToString("yyyy/M/d", CultureInfo.CurrentCulture);
+
+        return $"{date.Year}年{date.Month}月{date.Day}日";
     }
 
     private DateTime ClampDate(DateTime date)
@@ -193,10 +172,12 @@ public partial class KeyboardHeatmapWindow : Window
         {
             return _startDate;
         }
+
         if (normalized > _endDate)
         {
             return _endDate;
         }
+
         return normalized;
     }
 
@@ -206,6 +187,78 @@ public partial class KeyboardHeatmapWindow : Window
         PrevDayButton.IsEnabled = _selectedDate > _startDate;
         NextDayButton.IsEnabled = _selectedDate < _endDate;
         BackToTodayButton.Visibility = _selectedDate == today ? Visibility.Collapsed : Visibility.Visible;
+    }
+
+    private void UpdateDatePickerState()
+    {
+        var minDate = _startDate.Date;
+        var maxDate = _endDate.Date;
+        if (maxDate < minDate)
+        {
+            maxDate = minDate;
+        }
+
+        var displayStart = new DateTime(minDate.Year, minDate.Month, 1);
+        var displayEnd = new DateTime(maxDate.Year, maxDate.Month, DateTime.DaysInMonth(maxDate.Year, maxDate.Month));
+
+        DatePickerCalendar.DisplayDateStart = displayStart;
+        DatePickerCalendar.DisplayDateEnd = displayEnd;
+        DatePickerCalendar.BlackoutDates.Clear();
+
+        if (minDate > DateTime.MinValue.Date)
+        {
+            DatePickerCalendar.BlackoutDates.Add(new CalendarDateRange(DateTime.MinValue.Date, minDate.AddDays(-1)));
+        }
+
+        if (maxDate < DateTime.MaxValue.Date)
+        {
+            DatePickerCalendar.BlackoutDates.Add(new CalendarDateRange(maxDate.AddDays(1), DateTime.MaxValue.Date));
+        }
+
+        if (!DatePickerPopup.IsOpen)
+        {
+            _suppressCalendarSelection = true;
+            var clamped = ClampDate(_selectedDate);
+            DatePickerCalendar.DisplayDate = clamped;
+            DatePickerCalendar.SelectedDate = clamped;
+            _suppressCalendarSelection = false;
+        }
+
+        DatePickerButton.IsEnabled = minDate <= maxDate;
+    }
+
+    private void OpenDatePicker_Click(object sender, RoutedEventArgs e)
+    {
+        if (DatePickerPopup.IsOpen)
+        {
+            DatePickerPopup.IsOpen = false;
+            return;
+        }
+
+        UpdateDatePickerState();
+        DatePickerPopup.IsOpen = true;
+        DatePickerCalendar.Focus();
+    }
+
+    private void DatePickerPopup_Closed(object sender, EventArgs e)
+    {
+        DatePickerButton.Focus();
+    }
+
+    private void DatePickerCalendar_SelectedDatesChanged(object? sender, SelectionChangedEventArgs e)
+    {
+        if (_suppressCalendarSelection)
+        {
+            return;
+        }
+
+        if (DatePickerCalendar.SelectedDate is not DateTime selected)
+        {
+            return;
+        }
+
+        DatePickerPopup.IsOpen = false;
+        TransitionToDate(selected.Date);
     }
 
     private void ShowPreviousDay_Click(object sender, RoutedEventArgs e)
@@ -237,6 +290,8 @@ public partial class KeyboardHeatmapWindow : Window
 
     private void TransitionToDate(DateTime targetDate)
     {
+        DatePickerPopup.IsOpen = false;
+
         var target = ClampDate(targetDate);
         if (target == _selectedDate)
         {

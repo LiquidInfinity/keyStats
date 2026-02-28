@@ -963,20 +963,23 @@ public class StatsManager : IDisposable
         lock (_lock)
         {
             var today = DateTime.Today;
-            DateTime? earliest = null;
+            var start = today;
 
-            ConsiderKeyboardActivityDate(CurrentStats, today, ref earliest);
+            var currentDate = CurrentStats.Date.Date;
+            if (currentDate <= today)
+            {
+                start = currentDate;
+            }
 
             foreach (var daily in History.Values)
             {
-                ConsiderKeyboardActivityDate(daily, today, ref earliest);
+                var candidate = daily.Date.Date;
+                if (candidate <= today && candidate < start)
+                {
+                    start = candidate;
+                }
             }
 
-            var start = earliest ?? today;
-            if (start > today)
-            {
-                start = today;
-            }
             return (start, today);
         }
     }
@@ -1044,30 +1047,6 @@ public class StatsManager : IDisposable
 
         var key = date.ToString("yyyy-MM-dd");
         return History.TryGetValue(key, out var stats) ? stats : new DailyStats(date);
-    }
-
-    private static void ConsiderKeyboardActivityDate(DailyStats daily, DateTime today, ref DateTime? earliest)
-    {
-        if (!HasKeyboardActivity(daily))
-        {
-            return;
-        }
-
-        var candidate = daily.Date.Date;
-        if (candidate > today)
-        {
-            return;
-        }
-
-        if (!earliest.HasValue || candidate < earliest.Value)
-        {
-            earliest = candidate;
-        }
-    }
-
-    private static bool HasKeyboardActivity(DailyStats daily)
-    {
-        return daily.KeyPresses > 0 || daily.KeyPressCounts.Count > 0;
     }
 
     private static Dictionary<string, int> AggregateKeyboardHeatmapCounts(Dictionary<string, int> keyPressCounts)
