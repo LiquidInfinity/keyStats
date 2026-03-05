@@ -328,6 +328,11 @@ final class KeyboardHeatmapViewController: NSViewController {
         return popover
     }
 
+    func resetToTodayAndRefresh() {
+        selectedDate = clampedDate(Calendar.current.startOfDay(for: Date()))
+        refreshData()
+    }
+
     func refreshData() {
         let statsManager = StatsManager.shared
         dateBounds = statsManager.keyboardHeatmapDateBounds()
