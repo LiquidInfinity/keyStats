@@ -6,7 +6,6 @@ using System.Runtime.InteropServices;
 using System.Windows;
 using System.Windows.Data;
 using System.Threading.Tasks;
-using Hardcodet.Wpf.TaskbarNotification;
 using KeyStats.Helpers;
 using KeyStats.Services;
 using KeyStats.ViewModels;
@@ -15,12 +14,13 @@ using DotPostHog;
 using DotPostHog.Model;
 using Microsoft.Toolkit.Uwp.Notifications;
 using Microsoft.Win32;
+using Forms = System.Windows.Forms;
 
 namespace KeyStats;
 
 public partial class App : System.Windows.Application
 {
-    private TaskbarIcon? _trayIcon;
+    private Forms.NotifyIcon? _trayIcon;
     private TrayIconViewModel? _trayIconViewModel;
     private SettingsWindow? _settingsWindow;
     private NotificationSettingsWindow? _notificationSettingsWindow;
@@ -83,26 +83,30 @@ public partial class App : System.Windows.Application
             // Create tray icon
             _trayIconViewModel = new TrayIconViewModel();
             var contextMenu = CreateContextMenu();
-            _trayIcon = new TaskbarIcon
+            _trayIcon = new Forms.NotifyIcon
             {
                 Icon = _trayIconViewModel.TrayIcon,
-                ToolTipText = _trayIconViewModel.TooltipText,
+                Text = _trayIconViewModel.TooltipText,
+                Visible = true
             };
+            _trayIcon.MouseClick += (s, e) =>
+            {
+                if (e.Button == Forms.MouseButtons.Right)
+                {
+                    Application.Current?.Dispatcher.BeginInvoke(new Action(() =>
+                    {
+                        contextMenu.Placement = System.Windows.Controls.Primitives.PlacementMode.MousePoint;
+                        contextMenu.IsOpen = true;
+                    }));
+                    return;
+                }
 
-            // Manually handle right-click context menu instead of using TaskbarIcon.ContextMenu.
-            // Hardcodet.NotifyIcon.Wpf uses GetPhysicalCursorPos + AbsolutePoint placement,
-            // which miscalculates coordinates on the first show (Popup HWND doesn't exist yet
-            // for proper DPI conversion). Using MousePoint lets WPF resolve coordinates itself.
-            _trayIcon.TrayRightMouseUp += (s, e) =>
-            {
-                contextMenu.Placement = System.Windows.Controls.Primitives.PlacementMode.MousePoint;
-                contextMenu.IsOpen = true;
-            };
-            
-            // 使用 TrayLeftMouseDown 事件处理左键单击（按下时立即触发，不需要双击）
-            _trayIcon.TrayLeftMouseDown += (s, e) =>
-            {
-                Console.WriteLine("TrayLeftMouseDown event fired - showing stats");
+                if (e.Button != Forms.MouseButtons.Left)
+                {
+                    return;
+                }
+
+                Console.WriteLine("NotifyIcon left click fired - showing stats");
                 Task.Run(() =>
                 {
                     try
@@ -114,7 +118,7 @@ public partial class App : System.Windows.Application
                         // Ignore analytics failures.
                     }
                 });
-                var anchorPoint = System.Windows.Forms.Control.MousePosition;
+                var anchorPoint = Forms.Control.MousePosition;
                 Application.Current?.Dispatcher.BeginInvoke(new Action(() =>
                 {
                     _trayIconViewModel?.ShowStats(anchorPoint);
@@ -133,7 +137,7 @@ public partial class App : System.Windows.Application
                 }
                 else if (ev.PropertyName == nameof(TrayIconViewModel.TooltipText))
                 {
-                    _trayIcon.ToolTipText = _trayIconViewModel.TooltipText;
+                    _trayIcon.Text = _trayIconViewModel.TooltipText;
                 }
             };
         }
@@ -437,7 +441,11 @@ public partial class App : System.Windows.Application
     {
         TrackAnalyticsExit();
         _trayIconViewModel?.Cleanup();
-        _trayIcon?.Dispose();
+        if (_trayIcon != null)
+        {
+            _trayIcon.Visible = false;
+            _trayIcon.Dispose();
+        }
         InputMonitorService.Instance.StopMonitoring();
         StatsManager.Instance.FlushPendingSave();
         ThemeManager.Instance.Dispose();

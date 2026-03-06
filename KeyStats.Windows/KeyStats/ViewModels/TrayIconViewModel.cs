@@ -17,7 +17,6 @@ namespace KeyStats.ViewModels;
 
 public class TrayIconViewModel : ViewModelBase
 {
-    private readonly StatsManager _statsManager = StatsManager.Instance;
     private DrawingIcon? _trayIcon;
     private string _tooltipText = "KeyStats";
     private StatsPopupWindow? _popupWindow;
@@ -45,13 +44,11 @@ public class TrayIconViewModel : ViewModelBase
         QuitCommand = new RelayCommand(Quit);
 
         LoadTrayIconOnce();
-        _statsManager.StatsUpdateRequested += OnStatsUpdateRequested;
-        UpdateTooltipText();
     }
 
     private void LoadTrayIconOnce()
     {
-        // 使用静态图标文件（只初始化一次）
+        // Use the static tray icon image and size it once for the current DPI.
         try
         {
             var assembly = Assembly.GetExecutingAssembly();
@@ -61,14 +58,11 @@ public class TrayIconViewModel : ViewModelBase
             if (stream != null)
             {
                 using var originalBitmap = new Bitmap(stream);
-                // 转换为图标，使用系统托盘图标大小
-                int iconSize = GetSystemTrayIconSize();
-                // 使用高质量缩放算法
+                var iconSize = GetSystemTrayIconSize();
                 using var resizedBitmap = ResizeBitmapHighQuality(originalBitmap, iconSize, iconSize);
                 var hIcon = resizedBitmap.GetHicon();
                 var tempIcon = DrawingIcon.FromHandle(hIcon);
                 TrayIcon = (DrawingIcon)tempIcon.Clone();
-                // Clean up temp icon and GDI handle
                 tempIcon.Dispose();
                 NativeInterop.DestroyIcon(hIcon);
                 return;
@@ -79,24 +73,20 @@ public class TrayIconViewModel : ViewModelBase
             Console.WriteLine($"Error loading tray icon: {ex.Message}");
         }
 
-        // 如果加载失败，尝试从文件系统加载
         try
         {
             var exePath = Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location);
-            var iconPath = Path.Combine(exePath ?? "", "Resources", "Icons", "tray-icon.png");
+            var iconPath = Path.Combine(exePath ?? string.Empty, "Resources", "Icons", "tray-icon.png");
             if (File.Exists(iconPath))
             {
                 using var originalBitmap = new Bitmap(iconPath);
-                int iconSize = GetSystemTrayIconSize();
-                // 使用高质量缩放算法
+                var iconSize = GetSystemTrayIconSize();
                 using var resizedBitmap = ResizeBitmapHighQuality(originalBitmap, iconSize, iconSize);
                 var hIcon = resizedBitmap.GetHicon();
                 var tempIcon = DrawingIcon.FromHandle(hIcon);
                 TrayIcon = (DrawingIcon)tempIcon.Clone();
-                // Clean up temp icon and GDI handle
                 tempIcon.Dispose();
                 NativeInterop.DestroyIcon(hIcon);
-                return;
             }
         }
         catch (Exception ex)
@@ -107,14 +97,11 @@ public class TrayIconViewModel : ViewModelBase
 
     private static int GetSystemTrayIconSize()
     {
-        // Get DPI scale factor
         using var screen = Graphics.FromHwnd(IntPtr.Zero);
         var dpiX = screen.DpiX;
 
-        // Base size is 16 at 96 DPI (100%)
-        int size = (int)(16 * dpiX / 96);
+        var size = (int)(16 * dpiX / 96);
 
-        // Clamp to reasonable sizes
         if (size <= 16) return 16;
         if (size <= 20) return 20;
         if (size <= 24) return 24;
@@ -124,22 +111,20 @@ public class TrayIconViewModel : ViewModelBase
     }
 
     /// <summary>
-    /// 使用高质量算法缩放位图，减少模糊
+    /// Resize the tray image with high quality sampling to keep edges sharp.
     /// </summary>
     private static Bitmap ResizeBitmapHighQuality(Bitmap original, int width, int height)
     {
         var resized = new Bitmap(width, height, PixelFormat.Format32bppArgb);
         using (var g = Graphics.FromImage(resized))
         {
-            // 使用高质量设置
             g.InterpolationMode = InterpolationMode.HighQualityBicubic;
             g.SmoothingMode = SmoothingMode.HighQuality;
             g.PixelOffsetMode = PixelOffsetMode.HighQuality;
             g.CompositingQuality = CompositingQuality.HighQuality;
-            
-            // 绘制缩放后的图像
             g.DrawImage(original, 0, 0, width, height);
         }
+
         return resized;
     }
 
@@ -164,26 +149,6 @@ public class TrayIconViewModel : ViewModelBase
         {
             Console.WriteLine($"TogglePopup error: {ex}");
         }
-    }
-
-    private void OnStatsUpdateRequested()
-    {
-        var dispatcher = Application.Current?.Dispatcher;
-        if (dispatcher == null || dispatcher.CheckAccess())
-        {
-            UpdateTooltipText();
-            return;
-        }
-
-        dispatcher.BeginInvoke(new Action(UpdateTooltipText));
-    }
-
-    private void UpdateTooltipText()
-    {
-        var stats = _statsManager.CurrentStats;
-        var keys = _statsManager.FormatNumber(stats.KeyPresses);
-        var clicks = _statsManager.FormatNumber(stats.TotalClicks);
-        TooltipText = $"鼠标: {clicks}\n键盘: {keys}";
     }
 
     public void ShowStats()
@@ -217,7 +182,6 @@ public class TrayIconViewModel : ViewModelBase
         }
     }
 
-
     private void Quit()
     {
         StatsManager.Instance.FlushPendingSave();
@@ -227,7 +191,6 @@ public class TrayIconViewModel : ViewModelBase
 
     public void Cleanup()
     {
-        _statsManager.StatsUpdateRequested -= OnStatsUpdateRequested;
         _trayIcon?.Dispose();
         _trayIcon = null;
     }
