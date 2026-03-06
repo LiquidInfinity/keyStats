@@ -42,4 +42,7 @@ public class AppSettings
 
     [JsonPropertyName("mouseDistanceUnit")]
     public string MouseDistanceUnit { get; set; } = "auto"; // auto | px
+
+    [JsonPropertyName("keyHistorySelectedRangeIndex")]
+    public int KeyHistorySelectedRangeIndex { get; set; } = 1;
 }

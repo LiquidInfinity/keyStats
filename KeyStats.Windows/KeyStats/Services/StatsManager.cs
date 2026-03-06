@@ -1286,6 +1286,7 @@ public class StatsManager : IDisposable
 
     public enum HistoryRange { Today, Yesterday, Week, Month }
     public enum HistoryMetric { KeyPresses, Clicks, MouseDistance, ScrollDistance }
+    public enum KeyHistoryRange { Today, Week, Month, All }
 
     public List<(DateTime Date, double Value)> GetHistorySeries(HistoryRange range, HistoryMetric metric)
     {
@@ -1312,6 +1313,34 @@ public class StatsManager : IDisposable
         };
     }
 
+    public List<(string Key, int Count)> GetHistoricalKeyCounts(KeyHistoryRange range, int limit = int.MaxValue)
+    {
+        lock (_lock)
+        {
+            var totals = new Dictionary<string, int>(StringComparer.Ordinal);
+            var dates = GetDatesInKeyHistoryRange(range);
+
+            foreach (var date in dates)
+            {
+                var daily = GetDailyStats(date);
+                MergeKeyCounts(daily.KeyPressCounts, totals);
+            }
+
+            var sorted = totals
+                .Where(x => x.Value > 0)
+                .OrderByDescending(x => x.Value)
+                .ThenBy(x => x.Key, StringComparer.OrdinalIgnoreCase)
+                .Select(x => (x.Key, x.Value));
+
+            if (limit > 0 && limit < int.MaxValue)
+            {
+                return sorted.Take(limit).ToList();
+            }
+
+            return sorted.ToList();
+        }
+    }
+
     private List<DateTime> GetDatesInRange(HistoryRange range)
     {
         var today = DateTime.Today;
@@ -1332,6 +1361,36 @@ public class StatsManager : IDisposable
         return dates;
     }
 
+    private List<DateTime> GetDatesInKeyHistoryRange(KeyHistoryRange range)
+    {
+        var today = DateTime.Today;
+        if (range == KeyHistoryRange.All)
+        {
+            var dates = History.Values
+                .Select(x => x.Date.Date)
+                .Where(x => x <= today)
+                .ToHashSet();
+            dates.Add(today);
+            return dates.OrderBy(x => x).ToList();
+        }
+
+        var startDate = range switch
+        {
+            KeyHistoryRange.Today => today,
+            KeyHistoryRange.Week => today.AddDays(-6),
+            KeyHistoryRange.Month => today.AddDays(-29),
+            _ => today
+        };
+
+        var result = new List<DateTime>();
+        for (var date = startDate.Date; date <= today; date = date.AddDays(1))
+        {
+            result.Add(date);
+        }
+
+        return result;
+    }
+
     private double GetMetricValue(HistoryMetric metric, DailyStats stats)
     {
         return metric switch
@@ -1342,6 +1401,26 @@ public class StatsManager : IDisposable
             HistoryMetric.ScrollDistance => stats.ScrollDistance,
             _ => 0
         };
+    }
+
+    private static void MergeKeyCounts(Dictionary<string, int> source, Dictionary<string, int> target)
+    {
+        foreach (var kvp in source)
+        {
+            var key = (kvp.Key ?? string.Empty).Trim();
+            if (string.IsNullOrWhiteSpace(key))
+            {
+                continue;
+            }
+
+            var count = Math.Max(0, kvp.Value);
+            if (count <= 0)
+            {
+                continue;
+            }
+
+            target[key] = SafeAdd(target.TryGetValue(key, out var existing) ? existing : 0, count);
+        }
     }
 
     public string FormatMouseDistance(double distance)

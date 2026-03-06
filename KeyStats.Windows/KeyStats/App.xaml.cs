@@ -27,6 +27,7 @@ public partial class App : System.Windows.Application
     private MouseCalibrationWindow? _mouseCalibrationWindow;
     private AppStatsWindow? _appStatsWindow;
     private KeyboardHeatmapWindow? _keyboardHeatmapWindow;
+    private KeyHistoryWindow? _keyHistoryWindow;
     private System.Threading.Mutex? _singleInstanceMutex;
     private string? _appVersion;
     private IPostHogAnalytics? _postHogClient;
@@ -181,6 +182,14 @@ public partial class App : System.Windows.Application
         };
         menu.Items.Add(startupItem);
 
+        var keyHistoryItem = new System.Windows.Controls.MenuItem { Header = "历史按键统计" };
+        keyHistoryItem.Click += (s, e) =>
+        {
+            TrackClick("context_menu_key_history");
+            ShowKeyHistoryWindow();
+        };
+        menu.Items.Add(keyHistoryItem);
+
         menu.Items.Add(new System.Windows.Controls.Separator());
 
         var quitItem = new System.Windows.Controls.MenuItem { Header = "退出" };
@@ -265,6 +274,20 @@ public partial class App : System.Windows.Application
         _keyboardHeatmapWindow.Closed += (_, _) => _keyboardHeatmapWindow = null;
         _keyboardHeatmapWindow.Show();
         _keyboardHeatmapWindow.Activate();
+    }
+
+    public void ShowKeyHistoryWindow()
+    {
+        if (_keyHistoryWindow != null && _keyHistoryWindow.IsVisible)
+        {
+            _keyHistoryWindow.Activate();
+            return;
+        }
+
+        _keyHistoryWindow = new KeyHistoryWindow();
+        _keyHistoryWindow.Closed += (_, _) => _keyHistoryWindow = null;
+        _keyHistoryWindow.Show();
+        _keyHistoryWindow.Activate();
     }
 
     public void ExportData()

@@ -86,10 +86,14 @@
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="*"/>
                     <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="6"/>
+                    <ColumnDefinition Width="Auto"/>
                 </Grid.ColumnDefinitions>
                 <TextBlock Grid.Column="0" Text="按键分布" Style="{DynamicResource SectionTitle}" Margin="0" VerticalAlignment="Center"/>
                 <Button Grid.Column="1" Content="键盘热力图" Style="{DynamicResource GhostButton}"
                         Click="OpenKeyboardHeatmap_Click" Padding="12,5"/>
+                <Button Grid.Column="3" Content="历史按键统计" Style="{DynamicResource GhostButton}"
+                        Click="OpenKeyHistory_Click" Padding="12,5"/>
             </Grid>
             <Border Style="{DynamicResource CardBorder}" Padding="8,6" Margin="0,0,0,6">
                 <controls:KeyBreakdownControl
