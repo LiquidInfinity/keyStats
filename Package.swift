@@ -9,7 +9,39 @@ let package = Package(
     targets: [
         .target(
             name: "KeyStatsCore",
-            path: "Sources/KeyStatsCore"
+            path: "KeyStats",
+            exclude: [
+                "Assets.xcassets",
+                "Main.storyboard",
+                "Info.plist",
+                "en.lproj",
+                "zh-Hans.lproj",
+                "AppStatsViewController.swift",
+                "InputMonitor.swift",
+                "KeyStats.entitlements",
+                "NotificationManager.swift",
+                "StatsManager.swift",
+                "HoverIconButton.swift",
+                "MouseDistanceCalibrationViewController.swift",
+                "ActivityHeatmapView.swift",
+                "AllTimeStatsWindowController.swift",
+                "MouseDistanceCalibrationWindowController.swift",
+                "SettingsViewController.swift",
+                "AppActivityTracker.swift",
+                "AppStatsWindowController.swift",
+                "AppDelegate.swift",
+                "MenuBarController.swift",
+                "AllTimeStatsViewController.swift",
+                "MainWindowController.swift",
+                "KeyboardHeatmapViewController.swift",
+                "LaunchAtLoginManager.swift",
+                "UpdateManager.swift",
+                "KeyboardHeatmapWindowController.swift",
+                "StatsPopoverViewController.swift",
+                "SettingsWindowController.swift",
+                "MainWindowViewController.swift"
+            ],
+            sources: ["AppStats.swift"]
         ),
         .testTarget(
             name: "KeyStatsCoreTests",
