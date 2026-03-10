@@ -206,6 +206,29 @@ KeyStats.Windows/
 - **UI Mode**: System tray application
 - **Advantages**: No runtime installation required, ready to use on Windows 10/11 out of the box, small app size (5-10 MB)
 
+
+## Testing (AppStats)
+
+To make `KeyStats/AppStats.swift` regression-testable, the repository includes XCTest-based tests in `KeyStatsTests/AppStatsTests.swift`, executed with `swift test`.
+
+Covered test cases:
+
+1. Default initialization values.
+2. Counter accumulation for key/click recording methods.
+3. Absolute-value behavior of `addScrollDistance(_:)`.
+4. Empty-name guard in `updateDisplayName("")`.
+5. Normal display name update.
+6. Codable round-trip consistency.
+7. Legacy `otherClicks` compatibility fallback.
+8. New side-click fields taking precedence over legacy field.
+9. Missing-field decode fallback to defaults.
+
+Run:
+
+```bash
+swift test
+```
+
 ## Privacy Statement
 
 KeyStats only tracks the **count** of keystrokes and clicks, and **does NOT record**:

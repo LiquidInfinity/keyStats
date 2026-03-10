@@ -212,6 +212,29 @@ KeyStats.Windows/
 - **UI 模式**：系统托盘应用
 - **优势**：无需安装运行时，Windows 10/11 开箱即用，应用体积小（5-10 MB）
 
+
+## 测试（AppStats）
+
+为了保证 `KeyStats/AppStats.swift` 的核心逻辑可回归验证，仓库新增了基于 `XCTest` 的测试代码（见 `KeyStatsTests/AppStatsTests.swift`），并通过 `swift test` 运行。
+
+当前覆盖的测试用例如下：
+
+1. 初始化默认值：验证 `init(bundleId:displayName:)` 后计数字段均为 0。
+2. 按键与点击累加：验证 `recordKeyPress/recordLeftClick/recordRightClick/recordSideBackClick/recordSideForwardClick` 的累加行为。
+3. 滚动距离绝对值：验证 `addScrollDistance(_:)` 对正负输入都按绝对值累加。
+4. 空名称保护：验证 `updateDisplayName("")` 不会覆盖旧名称。
+5. 名称更新：验证 `updateDisplayName("Updated")` 能正确更新。
+6. Codable 往返：编码再解码后字段保持一致。
+7. 旧字段兼容：仅存在 `otherClicks` 时回填 `sideBackClicks`。
+8. 新字段优先：当 `sideBackClicks/sideForwardClicks` 存在时忽略 `otherClicks`。
+9. 缺省字段容错：空 JSON 解码时回落到默认值。
+
+运行方式：
+
+```bash
+swift test
+```
+
 ## 隐私说明
 
 KeyStats 仅统计按键和点击的**次数**，**不会记录**：
