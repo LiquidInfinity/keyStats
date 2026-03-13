@@ -121,6 +121,11 @@
 
 ## Build, Run, Validate
 
+### Agent validation rule
+
+- After updating Windows code, do not use `dotnet build` as the default validation step.
+- Prefer targeted manual verification, focused reasoning, or another non-build validation path unless the user explicitly asks for a build.
+
 ### Build
 
 ```bash
