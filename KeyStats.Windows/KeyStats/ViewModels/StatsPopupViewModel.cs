@@ -49,6 +49,7 @@ public class StatsPopupViewModel : ViewModelBase
     private int _selectedMetricIndex;
     private int _selectedChartStyleIndex;
     private string _historySummary = "总计: 0";
+    private ObservableCollection<ChartDataPoint> _chartData = new();
 
     public string KeyPresses
     {
@@ -183,7 +184,11 @@ public class StatsPopupViewModel : ViewModelBase
     
     public ObservableCollection<AppStatsItem> AppStatsItems { get; } = new();
 
-    public ObservableCollection<ChartDataPoint> ChartData { get; } = new();
+    public ObservableCollection<ChartDataPoint> ChartData
+    {
+        get => _chartData;
+        set => SetProperty(ref _chartData, value);
+    }
 
     public ICommand QuitCommand { get; }
 
@@ -196,18 +201,29 @@ public class StatsPopupViewModel : ViewModelBase
         UpdateAppStats();
         UpdateHistorySection();
 
-        StatsManager.Instance.StatsUpdateRequested += OnStatsUpdateRequested;
+        StatsManager.Instance.StatsChanged += OnStatsChanged;
     }
 
-    private void OnStatsUpdateRequested()
+    private void OnStatsChanged(StatsManager.StatsUpdateKind updateKind)
     {
         Application.Current?.Dispatcher.Invoke(() =>
         {
-            UpdateStats();
-            UpdateKeyBreakdown();
-            UpdateAppStats();
-            UpdateHistorySection();
+            if (updateKind == StatsManager.StatsUpdateKind.MouseDistanceOnly)
+            {
+                UpdateStats();
+                return;
+            }
+
+            RefreshAllSections();
         });
+    }
+
+    private void RefreshAllSections()
+    {
+        UpdateStats();
+        UpdateKeyBreakdown();
+        UpdateAppStats();
+        UpdateHistorySection();
     }
 
     private void UpdateStats()
@@ -301,17 +317,12 @@ public class StatsPopupViewModel : ViewModelBase
 
         var series = StatsManager.Instance.GetHistorySeries(range, metric);
 
-        ChartData.Clear();
-        foreach (var point in series)
-        {
-            ChartData.Add(new ChartDataPoint { Date = point.Date, Value = point.Value });
-        }
+        ChartData = new ObservableCollection<ChartDataPoint>(
+            series.Select(point => new ChartDataPoint { Date = point.Date, Value = point.Value }));
 
         var total = series.Sum(x => x.Value);
         var formatted = StatsManager.Instance.FormatHistoryValue(metric, total);
         HistorySummary = $"总计: {formatted}";
-
-        OnPropertyChanged(nameof(ChartData));
     }
 
     private void Quit()
@@ -324,6 +335,6 @@ public class StatsPopupViewModel : ViewModelBase
 
     public void Cleanup()
     {
-        StatsManager.Instance.StatsUpdateRequested -= OnStatsUpdateRequested;
+        StatsManager.Instance.StatsChanged -= OnStatsChanged;
     }
 }

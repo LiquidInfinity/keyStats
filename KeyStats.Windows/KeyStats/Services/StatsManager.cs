@@ -13,6 +13,12 @@ namespace KeyStats.Services;
 
 public class StatsManager : IDisposable
 {
+    public enum StatsUpdateKind
+    {
+        Full,
+        MouseDistanceOnly
+    }
+
     private static StatsManager? _instance;
     public static StatsManager Instance => _instance ??= new StatsManager();
 
@@ -27,11 +33,14 @@ public class StatsManager : IDisposable
     private Timer? _saveTimer;
     private Timer? _midnightTimer;
     private Timer? _statsUpdateTimer;
+    private Timer? _mouseMoveUpdateTimer;
 
     private readonly double _saveInterval = 2000; // 2 seconds
     private readonly double _statsUpdateDebounceInterval = 300; // 0.3 seconds
+    private readonly double _mouseMoveIdleUpdateInterval = 350; // 0.35 seconds
     private bool _pendingSave;
     private bool _pendingStatsUpdate;
+    private bool _pendingMouseMoveUpdate;
 
     private int _lastNotifiedKeyPresses;
     private int _lastNotifiedClicks;
@@ -41,6 +50,7 @@ public class StatsManager : IDisposable
     public Dictionary<string, DailyStats> History { get; private set; } = new();
 
     public event Action? StatsUpdateRequested;
+    public event Action<StatsUpdateKind>? StatsChanged;
 
     private StatsManager()
     {
@@ -232,7 +242,7 @@ public class StatsManager : IDisposable
             CurrentStats.MouseDistance += distance;
         }
 
-        ScheduleDebouncedStatsUpdate();
+        ScheduleMouseMoveIdleUpdate();
         ScheduleSave();
     }
 
@@ -301,9 +311,53 @@ public class StatsManager : IDisposable
         _statsUpdateTimer.Start();
     }
 
-    private void NotifyStatsUpdate()
+    private void ScheduleMouseMoveIdleUpdate()
     {
-        StatsUpdateRequested?.Invoke();
+        lock (_lock)
+        {
+            _pendingMouseMoveUpdate = true;
+        }
+
+        if (_mouseMoveUpdateTimer == null)
+        {
+            _mouseMoveUpdateTimer = new Timer(_mouseMoveIdleUpdateInterval)
+            {
+                AutoReset = false
+            };
+            _mouseMoveUpdateTimer.Elapsed += (_, _) =>
+            {
+                lock (_lock)
+                {
+                    if (!_pendingMouseMoveUpdate)
+                    {
+                        return;
+                    }
+
+                    _pendingMouseMoveUpdate = false;
+                }
+
+                NotifyStatsUpdate(StatsUpdateKind.MouseDistanceOnly);
+            };
+        }
+
+        var mouseMoveUpdateTimer = _mouseMoveUpdateTimer;
+        if (mouseMoveUpdateTimer == null)
+        {
+            return;
+        }
+
+        mouseMoveUpdateTimer.Stop();
+        mouseMoveUpdateTimer.Start();
+    }
+
+    private void NotifyStatsUpdate(StatsUpdateKind kind = StatsUpdateKind.Full)
+    {
+        StatsChanged?.Invoke(kind);
+
+        if (kind == StatsUpdateKind.Full)
+        {
+            StatsUpdateRequested?.Invoke();
+        }
     }
 
     #region Persistence
@@ -561,6 +615,8 @@ public class StatsManager : IDisposable
             _pendingSave = false;
             _statsUpdateTimer?.Stop();
             _pendingStatsUpdate = false;
+            _mouseMoveUpdateTimer?.Stop();
+            _pendingMouseMoveUpdate = false;
 
             var importedHistory = NormalizeHistory(payload.History);
             var importedCurrent = NormalizeDailyStats(payload.CurrentStats, DateTime.Today);
@@ -1526,6 +1582,7 @@ public class StatsManager : IDisposable
     {
         _saveTimer?.Stop();
         _statsUpdateTimer?.Stop();
+        _mouseMoveUpdateTimer?.Stop();
         _midnightTimer?.Stop();
         SaveStats();
         SaveSettings();
@@ -1536,6 +1593,7 @@ public class StatsManager : IDisposable
         FlushPendingSave();
         _saveTimer?.Dispose();
         _statsUpdateTimer?.Dispose();
+        _mouseMoveUpdateTimer?.Dispose();
         _midnightTimer?.Dispose();
         _instance = null;
     }
