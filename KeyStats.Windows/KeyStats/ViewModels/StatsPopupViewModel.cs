@@ -36,6 +36,7 @@ public class ChartDataPoint
 public class StatsPopupViewModel : ViewModelBase
 {
     private string _keyPresses = "0";
+    private string _totalClicks = "0";
     private string _leftClicks = "0";
     private string _rightClicks = "0";
     private string _middleClicks = "0";
@@ -53,6 +54,12 @@ public class StatsPopupViewModel : ViewModelBase
     {
         get => _keyPresses;
         set => SetProperty(ref _keyPresses, value);
+    }
+
+    public string TotalClicks
+    {
+        get => _totalClicks;
+        set => SetProperty(ref _totalClicks, value);
     }
 
     public string LeftClicks
@@ -209,6 +216,7 @@ public class StatsPopupViewModel : ViewModelBase
         var manager = StatsManager.Instance;
 
         KeyPresses = stats.KeyPresses.ToString("N0");
+        TotalClicks = stats.TotalClicks.ToString("N0");
         LeftClicks = stats.LeftClicks.ToString("N0");
         RightClicks = stats.RightClicks.ToString("N0");
         MiddleClicks = stats.MiddleClicks.ToString("N0");
