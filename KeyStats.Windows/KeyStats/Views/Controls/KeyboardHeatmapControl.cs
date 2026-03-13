@@ -499,9 +499,9 @@ public class KeyboardHeatmapControl : FrameworkElement
         var spaceWidth = Math.Max(3.8, keyboardRightEdge - bottomNonSpaceWidth - bottomGapCount * keyGap);
         var bottomKeys = new[]
         {
-            ("Ctrl", "ctrl", leftCtrlWidth), ("Cmd", "win", leftWinWidth), ("Option", "alt", leftAltWidth),
-            ("Space", "space", spaceWidth), ("Option", "alt", rightAltWidth), ("Cmd", "win", rightWinWidth),
-            ("Ctrl", "ctrl", rightCtrlWidth)
+            ("LCtrl", "ctrl", leftCtrlWidth), ("LWin", "win", leftWinWidth), ("LAlt", "alt", leftAltWidth),
+            ("Space", "space", spaceWidth), ("RAlt", "alt", rightAltWidth), ("RWin", "win", rightWinWidth),
+            ("RCtrl", "ctrl", rightCtrlWidth)
         };
         foreach (var key in bottomKeys)
         {

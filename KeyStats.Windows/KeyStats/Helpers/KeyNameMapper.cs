@@ -31,7 +31,7 @@ public static class KeyNameMapper
         { 0xA0, "LShift" }, { 0xA1, "RShift" },
         { 0xA2, "LCtrl" }, { 0xA3, "RCtrl" },
         { 0xA4, "LAlt" }, { 0xA5, "RAlt" },
-        { 0x5B, "Win" }, { 0x5C, "Win" },
+        { 0x5B, "LWin" }, { 0x5C, "RWin" },
 
         // Numpad
         { 0x60, "Num0" }, { 0x61, "Num1" }, { 0x62, "Num2" }, { 0x63, "Num3" },
