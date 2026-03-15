@@ -8,6 +8,7 @@
 ## Quick Context
 
 KeyStats is a privacy-focused macOS menu bar app that tracks keyboard/mouse statistics (counts only, no content logging). Core components:
+
 - `InputMonitor`: Global event tap for keyboard/mouse monitoring
 - `StatsManager`: Data aggregation and persistence (UserDefaults)
 - `MenuBarController`: Status bar UI with compact dual-line display
@@ -65,6 +66,7 @@ Issue type?
 ## Critical Rules
 
 ### 🔴 MUST Follow (Security & Privacy)
+
 - ✅ Only track counts and distances, NEVER content
 - ✅ Always check accessibility permissions before monitoring
 - ✅ Use `weak` references for delegates/closures to prevent leaks
@@ -72,6 +74,7 @@ Issue type?
 - ✅ Clean up event taps in `stopMonitoring()` and `deinit`
 
 ### 🟡 SHOULD Follow (Quality)
+
 - ✅ One class per file, filename matches class name
 - ✅ Use `// MARK: -` for code organization
 - ✅ Use `guard` for early returns and validation
@@ -80,6 +83,7 @@ Issue type?
 - ✅ Ensure UI colors adapt to dark mode (use dynamic colors + `resolvedCGColor`/`resolvedColor`)
 
 ### 🌗 Dark/Light Theme Switching Notes (Critical)
+
 - ✅ `CALayer.backgroundColor` / `borderColor` use `CGColor` (a static snapshot) and do not automatically follow appearance changes
 - ✅ Do not cache `NSColor.controlBackgroundColor.withAlphaComponent(...)` and reuse it across updates (especially when launched in dark mode), as it may lock in the old appearance
 - ✅ For "dynamic system color + alpha", always resolve under the current `effectiveAppearance` using a helper, e.g. `resolvedCGColor(color, alpha:for:)`
@@ -88,6 +92,7 @@ Issue type?
 - ✅ When debugging theme issues, log `app/view/window` appearance plus final layer RGBA first to distinguish "trigger path issues" from "color resolution issues"
 
 ### 🟢 RECOMMENDED (Best Practices)
+
 - ✅ Document public APIs with `///` comments
 - ✅ Use `private` for internal implementation details
 - ✅ Implement Codable for data structures needing persistence
@@ -98,6 +103,7 @@ Issue type?
 ## Build & Development Commands
 
 ### Building
+
 ```bash
 # Development (Xcode - recommended)
 open KeyStats.xcodeproj
@@ -111,12 +117,14 @@ xcodebuild -project KeyStats.xcodeproj -scheme KeyStats -configuration Release b
 ```
 
 ### Distribution
+
 ```bash
 # Create DMG for distribution
 ./scripts/build_dmg.sh
 ```
 
 ### Testing
+
 ```bash
 # Currently no automated tests
 # When adding: Use XCTest framework in separate Tests target
@@ -128,6 +136,7 @@ xcodebuild test -project KeyStats.xcodeproj -scheme KeyStats
 ## Code Patterns & Examples
 
 ### Singleton Pattern (Thread-Safe)
+
 ```swift
 class StatsManager {
     static let shared = StatsManager()
@@ -138,6 +147,7 @@ class StatsManager {
 ```
 
 ### Permission Checking
+
 ```swift
 // Check permission status
 let trusted = AXIsProcessTrusted()
@@ -148,6 +158,7 @@ AXIsProcessTrustedWithOptions(options as CFDictionary)
 ```
 
 ### Main Thread UI Updates
+
 ```swift
 DispatchQueue.main.async {
     self.updateMenuBarDisplay()
@@ -156,6 +167,7 @@ DispatchQueue.main.async {
 ```
 
 ### Event Monitoring Setup
+
 ```swift
 let eventMask = (1 << CGEventType.keyDown.rawValue) |
                 (1 << CGEventType.leftMouseDown.rawValue)
@@ -171,6 +183,7 @@ eventTap = CGEvent.tapCreate(
 ```
 
 ### Debounced Updates
+
 ```swift
 private var updateTimer: Timer?
 
@@ -186,6 +199,7 @@ func scheduleDebouncedStatsUpdate() {
 ```
 
 ### Data Persistence (Codable)
+
 ```swift
 struct Stats: Codable {
     var keyPresses: Int = 0
@@ -248,6 +262,7 @@ KeyStats/
 ### Adding a New Statistic
 
 1. **Update Stats struct** in `StatsManager.swift`:
+
 ```swift
 struct Stats: Codable {
     var newMetric: Int = 0  // Add new property
@@ -256,6 +271,7 @@ struct Stats: Codable {
 ```
 
 2. **Add tracking logic** in `InputMonitor.swift`:
+
 ```swift
 private let eventCallback: CGEventTapCallBack = { proxy, type, event, refcon in
     // ... existing logic
@@ -264,6 +280,7 @@ private let eventCallback: CGEventTapCallBack = { proxy, type, event, refcon in
 ```
 
 3. **Add increment method** in `StatsManager.swift`:
+
 ```swift
 func incrementNewMetric() {
     currentStats.newMetric += 1
@@ -272,6 +289,7 @@ func incrementNewMetric() {
 ```
 
 4. **Update UI** in `StatsPopoverViewController.swift`:
+
 ```swift
 // Add label and update in refreshStats()
 newMetricLabel.stringValue = "\(stats.newMetric)"
@@ -280,6 +298,7 @@ newMetricLabel.stringValue = "\(stats.newMetric)"
 ### Modifying Menu Bar Display
 
 Edit `MenuBarController.updateMenuBarText()`:
+
 ```swift
 func updateMenuBarText(keyPresses: Int, mouseClicks: Int) {
     let line1 = formatNumber(keyPresses)  // Top line
@@ -291,6 +310,7 @@ func updateMenuBarText(keyPresses: Int, mouseClicks: Int) {
 ### Changing Reset Behavior
 
 Edit `StatsManager.resetStats()`:
+
 ```swift
 func resetStats() {
     currentStats = Stats()  // Reset to defaults
@@ -304,6 +324,7 @@ func resetStats() {
 ## UI Style (macOS Liquid Glass)
 
 ### Design Rules
+
 - Prefer soft surfaces: use `controlBackgroundColor` with alpha ~0.6–0.85 for panels/cards
 - Avoid heavy borders: use thin 0.5pt separators with low alpha instead of 1pt strokes
 - Use subtle shadows: small radius, low opacity, slight upward offset
@@ -311,6 +332,7 @@ func resetStats() {
 - Always resolve dynamic colors with `resolvedCGColor(...)` for dark mode consistency
 
 ### Helper Pattern
+
 ```swift
 private func applyGlassCardStyle(_ layer: CALayer?, for view: NSView) {
     guard let layer = layer else { return }
@@ -329,11 +351,13 @@ private func applyGlassCardStyle(_ layer: CALayer?, for view: NSView) {
 ## Threading & Performance
 
 ### Thread Safety Rules
+
 - **Event callbacks**: Run on background threads → dispatch UI updates to main
 - **UI updates**: ALWAYS use `DispatchQueue.main.async`
 - **Timers**: Run on RunLoop → ensure main thread for UI-affecting timers
 
 ### Performance Optimizations
+
 - **Mouse sampling**: 30Hz (1/30 second) instead of every event
 - **Debounced saves**: 500ms delay to batch rapid changes
 - **Lazy UI updates**: Only refresh when popover is visible
@@ -343,6 +367,7 @@ private func applyGlassCardStyle(_ layer: CALayer?, for view: NSView) {
 ## Localization
 
 ### String Localization Pattern
+
 ```swift
 // In code
 let title = NSLocalizedString("stats.title", comment: "")
@@ -355,6 +380,7 @@ let title = NSLocalizedString("stats.title", comment: "")
 ```
 
 ### Supported Languages
+
 - English (default)
 - 简体中文 (zh-Hans)
 
@@ -363,6 +389,7 @@ let title = NSLocalizedString("stats.title", comment: "")
 ## Testing & Validation Checklist
 
 ### Before Committing Changes
+
 - [ ] Build succeeds (⌘B in Xcode)
 - [ ] App runs without crashes
 - [ ] Accessibility permission prompt works
@@ -375,6 +402,7 @@ let title = NSLocalizedString("stats.title", comment: "")
 - [ ] UI updates on main thread
 
 ### Manual Testing Steps
+
 1. Grant accessibility permission
 2. Type and click to verify counter increments
 3. Check menu bar display updates
@@ -408,12 +436,14 @@ let lastResetDateKey = "lastResetDate"
 ## Documentation References
 
 ### Apple Documentation
+
 - [CGEvent Reference](https://developer.apple.com/documentation/coregraphics/cgevent)
 - [Accessibility API](https://developer.apple.com/documentation/applicationservices/axuielement)
 - [NSStatusItem](https://developer.apple.com/documentation/appkit/nsstatusitem)
 - [UserDefaults](https://developer.apple.com/documentation/foundation/userdefaults)
 
 ### Project Documentation
+
 - [README.md](./README.md) - Chinese documentation
 - [README_EN.md](./README_EN.md) - English documentation
 - [QUICKSTART.md](./QUICKSTART.md) - Quick start guide
@@ -423,12 +453,14 @@ let lastResetDateKey = "lastResetDate"
 ## Agent-Specific Guidance
 
 ### When Analyzing Code
+
 1. Read files before making suggestions
 2. Follow existing patterns (singleton, weak delegates, main thread UI)
 3. Check for thread safety implications
 4. Verify privacy compliance (no content logging)
 
 ### When Writing Code
+
 1. Match existing code style and naming
 2. Use `// MARK:` sections for organization
 3. Add `weak` to delegate/closure references
@@ -436,17 +468,15 @@ let lastResetDateKey = "lastResetDate"
 5. Document public methods with `///`
 
 ### When Debugging
+
 1. Check permission status first
 2. Verify event tap is active
 3. Confirm main thread for UI updates
 4. Review debounce timers and sampling rates
 
 ### When Refactoring
+
 1. Maintain backward compatibility with UserDefaults keys
 2. Keep singleton patterns intact
 3. Preserve thread safety
 4. Update all UI references if changing data models
-
-### Git Commit Attribution
-1. For every `git commit`, append this trailer at the end of the commit message:
-   `Co-authored-by: chatgpt-codex-connector[bot] <199175422+chatgpt-codex-connector[bot]@users.noreply.github.com>`

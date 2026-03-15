@@ -53,16 +53,16 @@ class InputMonitor {
         }
         
         // 创建事件掩码 - 监听键盘、鼠标点击、鼠标移动和滚动事件
-        let eventMask: CGEventMask = (
-            (1 << CGEventType.keyDown.rawValue) |
-            (1 << CGEventType.leftMouseDown.rawValue) |
+        let keyboardMask: CGEventMask = (1 << CGEventType.keyDown.rawValue) |
+            (1 << CGEventType.flagsChanged.rawValue)
+        let mouseMask: CGEventMask = (1 << CGEventType.leftMouseDown.rawValue) |
             (1 << CGEventType.rightMouseDown.rawValue) |
             (1 << CGEventType.otherMouseDown.rawValue) |
             (1 << CGEventType.mouseMoved.rawValue) |
             (1 << CGEventType.leftMouseDragged.rawValue) |
             (1 << CGEventType.rightMouseDragged.rawValue) |
             (1 << CGEventType.scrollWheel.rawValue)
-        )
+        let eventMask = keyboardMask | mouseMask
         
         // 创建事件回调
         let callback: CGEventTapCallBack = { (proxy, type, event, refcon) -> Unmanaged<CGEvent>? in
@@ -172,7 +172,13 @@ class InputMonitor {
             
         case .scrollWheel:
             handleScroll(event: event, appIdentity: getAppIdentity(for: event))
-            
+
+        case .flagsChanged:
+            let keyCode = Int(event.getIntegerValueField(.keyboardEventKeycode))
+            if keyCode == 57 { // CapsLock
+                statsManager.incrementKeyPresses(keyName: "CapsLock", appIdentity: getAppIdentity(for: event))
+            }
+
         default:
             break
         }
