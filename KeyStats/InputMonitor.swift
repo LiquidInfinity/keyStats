@@ -225,7 +225,8 @@ class InputMonitor {
         // 方向键(123-126)、Home(115)、End(119)、PageUp(116)、PageDown(121) 等导航键忽略 Fn 标志
         // 因为在某些键盘上这些键会自动带上 Fn 标志
         let isNavigationKey = (123...126).contains(keyCode) || [115, 116, 119, 121, 117].contains(keyCode)
-        if flags.contains(.maskSecondaryFn) && !isNavigationKey {
+        let isFnKey = [63, 179].contains(keyCode)
+        if flags.contains(.maskSecondaryFn) && !isNavigationKey && !isFnKey {
             names.append("Fn")
         }
         return names
@@ -247,6 +248,7 @@ class InputMonitor {
         49: "Space",
         51: "Delete",
         53: "Esc",
+        63: "Fn",
         64: "F17",
         71: "Clear",
         76: "Enter",
@@ -277,7 +279,8 @@ class InputMonitor {
         123: "Left",
         124: "Right",
         125: "Down",
-        126: "Up"
+        126: "Up",
+        179: "Fn"
     ]
 
     // MARK: - Keyboard Layout

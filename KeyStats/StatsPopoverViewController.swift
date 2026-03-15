@@ -1071,7 +1071,7 @@ class KeyCountRowView: NSView {
         "Shift": "shift",
         "Option": "option",
         "Ctrl": "control",
-        "Fn": "fn",
+        "Fn": "globe",
         "Esc": "escape",
         "Escape": "escape",
         "Tab": "tab",

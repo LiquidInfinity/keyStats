@@ -2,6 +2,42 @@ import Foundation
 import Cocoa
 import UserNotifications
 
+private func canonicalKeyPart(_ rawKeyPart: String) -> String {
+    let trimmed = rawKeyPart.trimmingCharacters(in: .whitespacesAndNewlines)
+    guard !trimmed.isEmpty else { return "" }
+
+    switch trimmed.uppercased() {
+    case "FN", "FUNCTION", "KEY63", "KEY179", "GLOBE", "🌐":
+        return "Fn"
+    default:
+        return trimmed
+    }
+}
+
+private func canonicalKeyName(_ keyName: String) -> String {
+    let trimmed = keyName.trimmingCharacters(in: .whitespacesAndNewlines)
+    if trimmed == "+" {
+        return "+"
+    }
+
+    let rawComponents = keyName
+        .split(separator: "+")
+        .map { canonicalKeyPart(String($0)) }
+        .filter { !$0.isEmpty }
+
+    guard !rawComponents.isEmpty else { return "" }
+
+    var orderedComponents: [String] = []
+    var seenComponents: Set<String> = []
+    for component in rawComponents {
+        if seenComponents.insert(component).inserted {
+            orderedComponents.append(component)
+        }
+    }
+
+    return orderedComponents.joined(separator: "+")
+}
+
 extension DailyStats {
     var formattedMouseDistance: String {
         StatsManager.shared.formatMouseDistance(mouseDistance)
@@ -296,8 +332,11 @@ class StatsManager {
     func incrementKeyPresses(keyName: String? = nil, appIdentity: AppIdentity? = nil) {
         ensureCurrentDay()
         currentStats.keyPresses += 1
-        if let keyName = keyName, !keyName.isEmpty {
-            currentStats.keyPressCounts[keyName, default: 0] += 1
+        if let keyName = keyName {
+            let canonicalName = canonicalKeyName(keyName)
+            if !canonicalName.isEmpty {
+                currentStats.keyPressCounts[canonicalName, default: 0] += 1
+            }
         }
         if let appIdentity = appIdentity {
             updateAppStats(for: appIdentity) { stats in
@@ -808,11 +847,27 @@ class StatsManager {
     }
 
     private func mergedCounterMap(_ lhs: [String: Int], _ rhs: [String: Int]) -> [String: Int] {
-        var merged = lhs
+        var merged = normalizedKeyPressCounts(lhs)
         for (key, value) in rhs {
-            merged[key] = safeAdd(merged[key] ?? 0, value)
+            let canonicalName = canonicalKeyName(key)
+            let count = max(0, value)
+            guard !canonicalName.isEmpty, count > 0 else { continue }
+            merged[canonicalName] = safeAdd(merged[canonicalName] ?? 0, count)
         }
         return merged
+    }
+
+    private func normalizedKeyPressCounts(_ counts: [String: Int]) -> [String: Int] {
+        var normalized: [String: Int] = [:]
+
+        for (key, value) in counts {
+            let canonicalName = canonicalKeyName(key)
+            let count = max(0, value)
+            guard !canonicalName.isEmpty, count > 0 else { continue }
+            normalized[canonicalName] = safeAdd(normalized[canonicalName] ?? 0, count)
+        }
+
+        return normalized
     }
 
     private func mergedAppStats(_ lhs: [String: AppStats], _ rhs: [String: AppStats]) -> [String: AppStats] {
@@ -871,12 +926,7 @@ class StatsManager {
         normalized.sideForwardClicks = max(0, normalized.sideForwardClicks)
         normalized.mouseDistance = normalized.mouseDistance.isFinite ? max(0, normalized.mouseDistance) : 0
         normalized.scrollDistance = normalized.scrollDistance.isFinite ? max(0, normalized.scrollDistance) : 0
-        normalized.keyPressCounts = normalized.keyPressCounts.reduce(into: [:]) { partial, entry in
-            let key = entry.key.trimmingCharacters(in: .whitespacesAndNewlines)
-            let count = max(0, entry.value)
-            guard !key.isEmpty, count > 0 else { return }
-            partial[key] = count
-        }
+        normalized.keyPressCounts = normalizedKeyPressCounts(normalized.keyPressCounts)
         normalized.appStats = normalizedAppStats(normalized.appStats)
         return normalized
     }
@@ -1067,7 +1117,7 @@ class StatsManager {
 
     /// 按次数排序的键位统计
     func keyPressBreakdownSorted() -> [(key: String, count: Int)] {
-        return currentStats.keyPressCounts
+        return normalizedKeyPressCounts(currentStats.keyPressCounts)
             .sorted {
                 if $0.value != $1.value {
                     return $0.value > $1.value
@@ -1422,7 +1472,7 @@ extension StatsManager {
         total.totalMouseDistance += daily.mouseDistance
         total.totalScrollDistance += daily.scrollDistance
 
-        for (key, count) in daily.keyPressCounts {
+        for (key, count) in normalizedKeyPressCounts(daily.keyPressCounts) {
             total.keyPressCounts[key, default: 0] += count
         }
 
