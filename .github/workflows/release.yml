@@ -218,6 +218,48 @@ jobs:
           git commit -m "chore: update keystats to v${{ needs.build-macos.outputs.version }}"
           git push origin main
 
+      - name: Update Scoop Bucket
+        if: ${{ !contains(github.ref_name, '-beta') }}
+        env:
+          SCOOP_BUCKET_TOKEN: ${{ secrets.SCOOP_BUCKET_TOKEN }}
+        run: |
+          VERSION="${{ needs.build-windows.outputs.version }}"
+          ZIP_NAME="KeyStats-Windows-${VERSION}.zip"
+          ZIP_PATH="release-assets/windows/${ZIP_NAME}"
+          SHA256=$(sha256sum "${ZIP_PATH}" | cut -d ' ' -f 1)
+          DOWNLOAD_URL="https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/${ZIP_NAME}"
+
+          cat > /tmp/keystats.json <<MANIFEST
+          {
+              "version": "${VERSION}",
+              "description": "Privacy-focused keyboard and mouse statistics tracker",
+              "homepage": "https://github.com/${{ github.repository }}",
+              "license": "MIT",
+              "url": "${DOWNLOAD_URL}",
+              "hash": "${SHA256}",
+              "extract_dir": "KeyStats-${VERSION}",
+              "shortcuts": [
+                  ["KeyStats.exe", "KeyStats"]
+              ],
+              "checkver": "github",
+              "autoupdate": {
+                  "url": "https://github.com/${{ github.repository }}/releases/download/v\$version/KeyStats-Windows-\$version.zip",
+                  "extract_dir": "KeyStats-\$version"
+              }
+          }
+          MANIFEST
+
+          python3 -m json.tool /tmp/keystats.json > /dev/null
+
+          git clone https://x-access-token:${SCOOP_BUCKET_TOKEN}@github.com/debugtheworldbot/scoop-keystats.git /tmp/scoop-keystats
+          cd /tmp/scoop-keystats
+          mkdir -p bucket
+          cp /tmp/keystats.json bucket/keystats.json
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add bucket/keystats.json
+          git diff --cached --quiet || (git commit -m "chore: update keystats to v${VERSION}" && git push origin main)
+
       - name: Verify Release
         run: |
           echo "Release v${{ needs.build-macos.outputs.version }} created successfully"
