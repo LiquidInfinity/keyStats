@@ -43,7 +43,14 @@ brew upgrade keystats
 
 ### Windows
 
-[从 GitHub Release 下载](https://github.com/debugtheworldbot/keyStats/releases) Windows 版本安装包
+#### 方式一：使用 Scoop 安装
+
+```bash
+scoop bucket add debugtheworldbot_scoop-keystats https://github.com/debugtheworldbot/scoop-keystats
+scoop install debugtheworldbot_scoop-keystats/keystats
+```
+
+#### 方式二：[从 GitHub Release 下载](https://github.com/debugtheworldbot/keyStats/releases) Windows 版本安装包
 
 > **无需安装任何依赖**：Windows 版本使用 .NET Framework 4.8，Windows 10 (1903+) 和 Windows 11 已预装，开箱即用。如果你的 Windows 10 版本较旧（早于 1903），可以升级系统或[手动安装 .NET Framework 4.8](https://dotnet.microsoft.com/download/dotnet-framework/net48)。
 

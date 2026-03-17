@@ -37,7 +37,14 @@ brew upgrade keystats
 
 ### Windows
 
-[Download from GitHub Releases](https://github.com/debugtheworldbot/keyStats/releases) the Windows installer
+#### Option 1: Install via Scoop
+
+```bash
+scoop bucket add debugtheworldbot_scoop-keystats https://github.com/debugtheworldbot/scoop-keystats
+scoop install debugtheworldbot_scoop-keystats/keystats
+```
+
+#### Option 2: [Download from GitHub Releases](https://github.com/debugtheworldbot/keyStats/releases)
 
 > **No dependencies required**: The Windows version uses .NET Framework 4.8, which is pre-installed on Windows 10 (1903+) and Windows 11 - ready to use out of the box. If your Windows 10 version is older (before 1903), you can upgrade your system or [manually install .NET Framework 4.8](https://dotnet.microsoft.com/download/dotnet-framework/net48).
 
