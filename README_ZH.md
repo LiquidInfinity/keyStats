@@ -46,8 +46,8 @@ brew upgrade keystats
 #### 方式一：使用 Scoop 安装
 
 ```bash
-scoop bucket add debugtheworldbot_scoop-keystats https://github.com/debugtheworldbot/scoop-keystats
-scoop install debugtheworldbot_scoop-keystats/keystats
+scoop bucket add keystats https://github.com/debugtheworldbot/scoop-keystats
+scoop install keystats
 ```
 
 #### 方式二：[从 GitHub Release 下载](https://github.com/debugtheworldbot/keyStats/releases) Windows 版本安装包

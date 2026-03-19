@@ -40,8 +40,8 @@ brew upgrade keystats
 #### Option 1: Install via Scoop
 
 ```bash
-scoop bucket add debugtheworldbot_scoop-keystats https://github.com/debugtheworldbot/scoop-keystats
-scoop install debugtheworldbot_scoop-keystats/keystats
+scoop bucket add keystats https://github.com/debugtheworldbot/scoop-keystats
+scoop install keystats
 ```
 
 #### Option 2: [Download from GitHub Releases](https://github.com/debugtheworldbot/keyStats/releases)
