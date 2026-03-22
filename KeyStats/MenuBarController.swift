@@ -236,6 +236,7 @@ final class MenuBarStatusViewModel: ObservableObject {
 
 struct MenuBarStatusSwiftUIView: View {
     @ObservedObject var viewModel: MenuBarStatusViewModel
+    @Environment(\.colorScheme) private var colorScheme
 
     private static let menuIcon: NSImage? = {
         guard let appIcon = NSImage(named: "MenuIcon") else {
@@ -296,7 +297,10 @@ struct MenuBarStatusSwiftUIView: View {
         if viewModel.colorStyle == .icon, let color = viewModel.iconColor {
             return Color(nsColor: color)
         }
-        return Color(nsColor: .labelColor)
+        if colorScheme == .dark {
+            return Color(red: 233 / 255, green: 241 / 255, blue: 245 / 255)
+        }
+        return Color(nsColor: .controlTextColor)
     }
 
     private var dotColor: Color? {
