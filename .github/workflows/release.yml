@@ -208,15 +208,22 @@ jobs:
         env:
           TAP_GITHUB_TOKEN: ${{ secrets.TAP_GITHUB_TOKEN }}
         run: |
+          VERSION="${{ needs.build-macos.outputs.version }}"
+          SHA256="${{ needs.build-macos.outputs.sha256 }}"
+
           git clone https://x-access-token:${TAP_GITHUB_TOKEN}@github.com/debugtheworldbot/homebrew-keystats.git /tmp/homebrew-keystats
           cd /tmp/homebrew-keystats
-          sed -i "s/version \".*\"/version \"${{ needs.build-macos.outputs.version }}\"/" Casks/keystats.rb
-          sed -i "s/sha256 \".*\"/sha256 \"${{ needs.build-macos.outputs.sha256 }}\"/" Casks/keystats.rb
+          sed -i "s/version \".*\"/version \"${VERSION}\"/" Casks/keystats.rb
+          sed -i "s/sha256 \".*\"/sha256 \"${SHA256}\"/" Casks/keystats.rb
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git add Casks/keystats.rb
-          git commit -m "chore: update keystats to v${{ needs.build-macos.outputs.version }}"
-          git push origin main
+          if git diff --cached --quiet; then
+            echo "Homebrew tap already up to date for v${VERSION}; skipping commit."
+          else
+            git commit -m "chore: update keystats to v${VERSION}"
+            git push origin main
+          fi
 
       - name: Update Scoop Bucket
         if: ${{ !contains(github.ref_name, '-beta') }}
