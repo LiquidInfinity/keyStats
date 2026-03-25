@@ -478,13 +478,7 @@ public partial class App : System.Windows.Application
     {
         try
         {
-            // .NET Framework 4.8 兼容：使用 Application.ExecutablePath 替代 Environment.ProcessPath
-            var exePath = System.Reflection.Assembly.GetExecutingAssembly().Location;
-            if (string.IsNullOrWhiteSpace(exePath))
-            {
-                // 备用方案：使用 Application.ExecutablePath（WPF）
-                exePath = System.Windows.Application.ResourceAssembly?.Location;
-            }
+            var exePath = GetCurrentExecutablePath();
             if (string.IsNullOrWhiteSpace(exePath))
             {
                 return;
@@ -497,11 +491,6 @@ public partial class App : System.Windows.Application
             }
 
             var shortcutPath = Path.Combine(programsDir, "KeyStats.lnk");
-            if (File.Exists(shortcutPath))
-            {
-                return;
-            }
-
             var shellType = Type.GetTypeFromProgID("WScript.Shell");
             if (shellType == null)
             {
@@ -510,6 +499,12 @@ public partial class App : System.Windows.Application
 
             dynamic shell = Activator.CreateInstance(shellType)!;
             dynamic shortcut = shell.CreateShortcut(shortcutPath);
+            var existingTargetPath = GetShortcutTargetPath(shortcut);
+            if (PathsEqual(existingTargetPath, exePath))
+            {
+                return;
+            }
+
             shortcut.TargetPath = exePath;
             shortcut.WorkingDirectory = Path.GetDirectoryName(exePath);
             shortcut.WindowStyle = 1;
@@ -521,6 +516,63 @@ public partial class App : System.Windows.Application
         {
             // Ignore failures; app should still run.
         }
+    }
+
+    private static string? GetCurrentExecutablePath()
+    {
+        try
+        {
+            var exePath = System.Diagnostics.Process.GetCurrentProcess().MainModule?.FileName;
+            if (!string.IsNullOrWhiteSpace(exePath))
+            {
+                return Path.GetFullPath(exePath);
+            }
+        }
+        catch
+        {
+        }
+
+        try
+        {
+            var exePath = System.Reflection.Assembly.GetExecutingAssembly().Location;
+            if (!string.IsNullOrWhiteSpace(exePath))
+            {
+                return Path.GetFullPath(exePath);
+            }
+        }
+        catch
+        {
+        }
+
+        return null;
+    }
+
+    private static string? GetShortcutTargetPath(dynamic shortcut)
+    {
+        try
+        {
+            var targetPath = shortcut.TargetPath as string;
+            if (string.IsNullOrWhiteSpace(targetPath))
+            {
+                return null;
+            }
+
+            return Path.GetFullPath(targetPath);
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    private static bool PathsEqual(string? left, string? right)
+    {
+        if (string.IsNullOrWhiteSpace(left) || string.IsNullOrWhiteSpace(right))
+        {
+            return false;
+        }
+
+        return string.Equals(left, right, StringComparison.OrdinalIgnoreCase);
     }
 
 #if DEBUG
