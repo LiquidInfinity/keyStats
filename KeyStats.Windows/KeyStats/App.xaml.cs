@@ -6,6 +6,9 @@ using System.Runtime.InteropServices;
 using System.Windows;
 using System.Windows.Data;
 using System.Threading.Tasks;
+using System.Windows.Controls;
+using System.Windows.Controls.Primitives;
+using System.Windows.Media;
 using KeyStats.Helpers;
 using KeyStats.Services;
 using KeyStats.ViewModels;
@@ -22,6 +25,7 @@ public partial class App : System.Windows.Application
 {
     private Forms.NotifyIcon? _trayIcon;
     private TrayIconViewModel? _trayIconViewModel;
+    private TrayContextMenuHost? _trayContextMenuHost;
     private SettingsWindow? _settingsWindow;
     private NotificationSettingsWindow? _notificationSettingsWindow;
     private MouseCalibrationWindow? _mouseCalibrationWindow;
@@ -75,6 +79,7 @@ public partial class App : System.Windows.Application
             Console.WriteLine("Initializing services...");
             // Initialize services
             var statsManager = StatsManager.Instance;
+            StartupManager.Instance.SyncWithSettings();
             _appVersion = typeof(App).Assembly.GetName().Version?.ToString() ?? "0.0.0";
             InitializeAnalytics(statsManager);
             InputMonitorService.Instance.StartMonitoring();
@@ -83,6 +88,7 @@ public partial class App : System.Windows.Application
             // Create tray icon
             _trayIconViewModel = new TrayIconViewModel();
             var contextMenu = CreateContextMenu();
+            _trayContextMenuHost = new TrayContextMenuHost(contextMenu);
             _trayIcon = new Forms.NotifyIcon
             {
                 Icon = _trayIconViewModel.TrayIcon,
@@ -95,8 +101,7 @@ public partial class App : System.Windows.Application
                 {
                     Application.Current?.Dispatcher.BeginInvoke(new Action(() =>
                     {
-                        contextMenu.Placement = System.Windows.Controls.Primitives.PlacementMode.MousePoint;
-                        contextMenu.IsOpen = true;
+                        _trayContextMenuHost?.ShowAtCursor();
                     }));
                     return;
                 }
@@ -455,6 +460,7 @@ public partial class App : System.Windows.Application
     {
         TrackAnalyticsExit();
         _trayIconViewModel?.Cleanup();
+        _trayContextMenuHost?.Dispose();
         if (_trayIcon != null)
         {
             _trayIcon.Visible = false;
@@ -809,4 +815,144 @@ public partial class App : System.Windows.Application
     /// 获取 App 实例（用于其他类调用追踪方法）
     /// </summary>
     public static App? CurrentApp => Current as App;
+
+    private sealed class TrayContextMenuHost : IDisposable
+    {
+        private readonly ContextMenu _menu;
+        private HostWindow? _hostWindow;
+        private bool _isClosingHostWindow;
+
+        public TrayContextMenuHost(ContextMenu menu)
+        {
+            _menu = menu;
+            _menu.Closed += OnMenuClosed;
+        }
+
+        public void ShowAtCursor()
+        {
+            EnsureHostWindow();
+
+            if (_hostWindow == null)
+            {
+                return;
+            }
+
+            _isClosingHostWindow = false;
+            var cursor = Forms.Control.MousePosition;
+
+            // Show the host window first (at its off-screen default position)
+            // so that PresentationSource becomes available for DPI queries.
+            if (!_hostWindow.IsVisible)
+            {
+                _hostWindow.Show();
+            }
+
+            // Convert physical pixels to WPF device-independent pixels (DIPs).
+            // Forms.Control.MousePosition returns physical pixels, but WPF
+            // Window.Left/Top expect DIPs. Without this conversion the menu
+            // lands at the wrong position on high-DPI displays.
+            var source = PresentationSource.FromVisual(_hostWindow);
+            var dpiScaleX = source?.CompositionTarget?.TransformToDevice.M11 ?? 1.0;
+            var dpiScaleY = source?.CompositionTarget?.TransformToDevice.M22 ?? 1.0;
+            _hostWindow.Left = cursor.X / dpiScaleX;
+            _hostWindow.Top = cursor.Y / dpiScaleY;
+
+            _hostWindow.Activate();
+            _menu.PlacementTarget = _hostWindow.Anchor;
+            _menu.Placement = PlacementMode.Bottom;
+            _menu.HorizontalOffset = 0;
+            _menu.VerticalOffset = 0;
+            _menu.IsOpen = true;
+        }
+
+        public void Dispose()
+        {
+            _menu.Closed -= OnMenuClosed;
+            CloseHostWindow();
+        }
+
+        private void EnsureHostWindow()
+        {
+            if (_hostWindow != null)
+            {
+                return;
+            }
+
+            _hostWindow = new HostWindow();
+            _hostWindow.Deactivated += OnHostWindowDeactivated;
+            _hostWindow.Closed += OnHostWindowClosed;
+        }
+
+        private void OnHostWindowDeactivated(object? sender, EventArgs e)
+        {
+            if (_menu.IsOpen)
+            {
+                _menu.IsOpen = false;
+            }
+            else
+            {
+                CloseHostWindow();
+            }
+        }
+
+        private void OnMenuClosed(object? sender, RoutedEventArgs e)
+        {
+            CloseHostWindow();
+        }
+
+        private void OnHostWindowClosed(object? sender, EventArgs e)
+        {
+            if (_hostWindow == null)
+            {
+                return;
+            }
+
+            _hostWindow.Deactivated -= OnHostWindowDeactivated;
+            _hostWindow.Closed -= OnHostWindowClosed;
+            _hostWindow = null;
+            _isClosingHostWindow = false;
+        }
+
+        private void CloseHostWindow()
+        {
+            if (_hostWindow == null || _isClosingHostWindow)
+            {
+                return;
+            }
+
+            _isClosingHostWindow = true;
+            _hostWindow.Close();
+        }
+
+        private sealed class HostWindow : Window
+        {
+            public Border Anchor { get; }
+
+            public HostWindow()
+            {
+                Width = 1;
+                Height = 1;
+                WindowStyle = WindowStyle.None;
+                ResizeMode = ResizeMode.NoResize;
+                ShowInTaskbar = false;
+                ShowActivated = true;
+                AllowsTransparency = true;
+                Background = Brushes.Transparent;
+                Opacity = 0.01;
+                Topmost = true;
+                Left = -10_000;
+                Top = -10_000;
+
+                Anchor = new Border
+                {
+                    Width = 1,
+                    Height = 1,
+                    Background = Brushes.Transparent,
+                    Focusable = false
+                };
+
+                Content = Anchor;
+            }
+        }
+    }
 }
