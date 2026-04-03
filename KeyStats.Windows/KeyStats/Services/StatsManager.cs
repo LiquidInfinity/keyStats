@@ -38,6 +38,7 @@ public class StatsManager : IDisposable
     private readonly double _saveInterval = 2000; // 2 seconds
     private readonly double _statsUpdateDebounceInterval = 300; // 0.3 seconds
     private readonly double _mouseMoveIdleUpdateInterval = 350; // 0.35 seconds
+    private const int MaxMissingDayBackfillDays = 31;
     private bool _pendingSave;
     private bool _pendingStatsUpdate;
     private bool _pendingMouseMoveUpdate;
@@ -67,14 +68,15 @@ public class StatsManager : IDisposable
         History = LoadHistory();
         CurrentStats = LoadStats() ?? new DailyStats();
 
-        // Check if stats are from today
         if (CurrentStats.Date.Date != DateTime.Today)
         {
-            CurrentStats = new DailyStats();
+            SynchronizeCurrentDay(DateTime.Today, notifyStatsUpdate: false);
         }
-
-        UpdateNotificationBaselines();
-        SaveStats();
+        else
+        {
+            UpdateNotificationBaselines();
+            SaveStats();
+        }
 
         SetupMidnightReset();
         SetupInputMonitor();
@@ -261,10 +263,7 @@ public class StatsManager : IDisposable
 
     private void EnsureCurrentDay()
     {
-        if (CurrentStats.Date.Date != DateTime.Today)
-        {
-            ResetStats(DateTime.Today);
-        }
+        SynchronizeCurrentDay(DateTime.Today, notifyStatsUpdate: true);
     }
 
     private void ScheduleSave()
@@ -859,34 +858,35 @@ public class StatsManager : IDisposable
         ScheduleNextMidnightReset();
     }
 
+    private readonly object _midnightTimerLock = new();
+
     private void ScheduleNextMidnightReset()
     {
-        _midnightTimer?.Stop();
-        _midnightTimer?.Dispose();
+        lock (_midnightTimerLock)
+        {
+            _midnightTimer?.Stop();
+            _midnightTimer?.Dispose();
 
-        var now = DateTime.Now;
-        var nextMidnight = DateTime.Today.AddDays(1);
-        var timeUntilMidnight = nextMidnight - now;
+            var now = DateTime.Now;
+            var nextMidnight = DateTime.Today.AddDays(1);
+            var timeUntilMidnight = nextMidnight - now;
 
-        _midnightTimer = new Timer(timeUntilMidnight.TotalMilliseconds);
-        _midnightTimer.Elapsed += (_, _) => PerformMidnightReset();
-        _midnightTimer.AutoReset = false;
-        _midnightTimer.Start();
+            _midnightTimer = new Timer(timeUntilMidnight.TotalMilliseconds);
+            _midnightTimer.Elapsed += (_, _) => PerformMidnightReset();
+            _midnightTimer.AutoReset = false;
+            _midnightTimer.Start();
+        }
     }
 
     private void PerformMidnightReset()
     {
-        var now = DateTime.Now;
-        if (CurrentStats.Date.Date != now.Date)
-        {
-            ResetStats(now);
-        }
-        Dictionary<string, DailyStats> historySnapshot;
-        lock (_lock)
-        {
-            historySnapshot = CloneHistorySnapshot(History);
-        }
-        SaveHistorySnapshot(historySnapshot);
+        SynchronizeCurrentDay(DateTime.Now, notifyStatsUpdate: true);
+        ScheduleNextMidnightReset();
+    }
+
+    public void HandleSystemResume()
+    {
+        SynchronizeCurrentDay(DateTime.Now, notifyStatsUpdate: true);
         ScheduleNextMidnightReset();
     }
 
@@ -911,6 +911,55 @@ public class StatsManager : IDisposable
         SaveHistorySnapshot(historySnapshot);
         UpdateNotificationBaselines();
         NotifyStatsUpdate();
+        SaveStats();
+    }
+
+    private void SynchronizeCurrentDay(DateTime targetDate, bool notifyStatsUpdate)
+    {
+        var normalizedTargetDate = targetDate.Date;
+        var changed = false;
+
+        lock (_lock)
+        {
+            var currentDate = CurrentStats.Date.Date;
+            if (currentDate == normalizedTargetDate)
+            {
+                return;
+            }
+
+            History[currentDate.ToString("yyyy-MM-dd")] = CloneDailyStats(CurrentStats, currentDate);
+
+            if (currentDate < normalizedTargetDate)
+            {
+                var missingDayCount = (normalizedTargetDate - currentDate).Days - 1;
+                if (missingDayCount > 0 && missingDayCount <= MaxMissingDayBackfillDays)
+                {
+                    for (var missingDate = currentDate.AddDays(1); missingDate < normalizedTargetDate; missingDate = missingDate.AddDays(1))
+                    {
+                        var key = missingDate.ToString("yyyy-MM-dd");
+                        if (!History.ContainsKey(key))
+                        {
+                            History[key] = new DailyStats(missingDate);
+                        }
+                    }
+                }
+            }
+
+            CurrentStats = new DailyStats(normalizedTargetDate);
+            UpdateNotificationBaselines();
+            changed = true;
+        }
+
+        if (!changed)
+        {
+            return;
+        }
+
+        if (notifyStatsUpdate)
+        {
+            NotifyStatsUpdate();
+        }
+
         SaveStats();
     }
 
