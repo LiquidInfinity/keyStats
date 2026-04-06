@@ -122,6 +122,13 @@ class StatsManager {
     private let inputRateBucketInterval: TimeInterval = 0.5
     private let inputRateApmThresholds: [Double] = [0, 80, 160, 240]
     private let inputRateLock = NSLock()
+
+    // KPS/CPS 峰值追踪（滑动窗口，1 秒，单调时钟）
+    private let statsStateLock = NSLock()
+    private var recentKeyTimestamps: [TimeInterval] = []  // ProcessInfo.systemUptime values
+    private var recentClickTimestamps: [TimeInterval] = []  // ProcessInfo.systemUptime values
+    private var keyTimestampsHead: Int = 0
+    private var clickTimestampsHead: Int = 0
     private var isReadyForUpdates = false
     private lazy var inputRateBuckets: [Int] = {
         let bucketCount = max(1, Int(inputRateWindowSeconds / inputRateBucketInterval))
@@ -326,7 +333,6 @@ class StatsManager {
             startInputRateTracking()
             updateCurrentInputRate()
         }
-        
         setupMidnightReset()
     }
     
@@ -342,8 +348,20 @@ class StatsManager {
         currentStats.appStats[bundleId] = stats
     }
 
+    /// 调用前必须持有 statsStateLock
+    private func updateAppStatsLocked(for identity: AppIdentity, update: (inout AppStats) -> Void) {
+        guard appStatsEnabled else { return }
+        let bundleId = identity.bundleId.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !bundleId.isEmpty else { return }
+        var stats = currentStats.appStats[bundleId] ?? AppStats(bundleId: bundleId, displayName: identity.displayName)
+        stats.updateDisplayName(identity.displayName)
+        update(&stats)
+        currentStats.appStats[bundleId] = stats
+    }
+
     func incrementKeyPresses(keyName: String? = nil, appIdentity: AppIdentity? = nil) {
-        ensureCurrentDay()
+        statsStateLock.lock()
+        ensureCurrentDayLocked()
         currentStats.keyPresses += 1
         if let keyName = keyName {
             let canonicalName = canonicalKeyName(keyName)
@@ -352,75 +370,91 @@ class StatsManager {
             }
         }
         if let appIdentity = appIdentity {
-            updateAppStats(for: appIdentity) { stats in
+            updateAppStatsLocked(for: appIdentity) { stats in
                 stats.recordKeyPress()
             }
         }
+        statsStateLock.unlock()
         registerInputEvent()
+        recordKeyForPeakKPS()
         notifyMenuBarUpdate()
         notifyStatsUpdate()
         notifyKeyPressThresholdIfNeeded()
     }
-    
+
     func incrementLeftClicks(appIdentity: AppIdentity? = nil) {
-        ensureCurrentDay()
+        statsStateLock.lock()
+        ensureCurrentDayLocked()
         currentStats.leftClicks += 1
         if let appIdentity = appIdentity {
-            updateAppStats(for: appIdentity) { stats in
+            updateAppStatsLocked(for: appIdentity) { stats in
                 stats.recordLeftClick()
             }
         }
+        statsStateLock.unlock()
         registerInputEvent()
+        recordClickForPeakCPS()
         notifyMenuBarUpdate()
         notifyStatsUpdate()
         notifyClickThresholdIfNeeded()
     }
-    
+
     func incrementRightClicks(appIdentity: AppIdentity? = nil) {
-        ensureCurrentDay()
+        statsStateLock.lock()
+        ensureCurrentDayLocked()
         currentStats.rightClicks += 1
         if let appIdentity = appIdentity {
-            updateAppStats(for: appIdentity) { stats in
+            updateAppStatsLocked(for: appIdentity) { stats in
                 stats.recordRightClick()
             }
         }
+        statsStateLock.unlock()
         registerInputEvent()
+        recordClickForPeakCPS()
         notifyMenuBarUpdate()
         notifyStatsUpdate()
         notifyClickThresholdIfNeeded()
     }
 
     func incrementSideBackClicks(appIdentity: AppIdentity? = nil) {
-        ensureCurrentDay()
+        statsStateLock.lock()
+        ensureCurrentDayLocked()
         currentStats.sideBackClicks += 1
         if let appIdentity = appIdentity {
-            updateAppStats(for: appIdentity) { stats in
+            updateAppStatsLocked(for: appIdentity) { stats in
                 stats.recordSideBackClick()
             }
         }
+        statsStateLock.unlock()
         registerInputEvent()
+        recordClickForPeakCPS()
         notifyMenuBarUpdate()
         notifyStatsUpdate()
         notifyClickThresholdIfNeeded()
     }
 
     func incrementSideForwardClicks(appIdentity: AppIdentity? = nil) {
-        ensureCurrentDay()
+        statsStateLock.lock()
+        ensureCurrentDayLocked()
         currentStats.sideForwardClicks += 1
         if let appIdentity = appIdentity {
-            updateAppStats(for: appIdentity) { stats in
+            updateAppStatsLocked(for: appIdentity) { stats in
                 stats.recordSideForwardClick()
             }
         }
+        statsStateLock.unlock()
         registerInputEvent()
+        recordClickForPeakCPS()
         notifyMenuBarUpdate()
         notifyStatsUpdate()
         notifyClickThresholdIfNeeded()
     }
     
     func addMouseDistance(_ distance: Double) {
-        ensureCurrentDay()
+        statsStateLock.lock()
+        ensureCurrentDayLocked()
         currentStats.mouseDistance += distance
+        statsStateLock.unlock()
         scheduleDebouncedStatsUpdate()
     }
 
@@ -520,13 +554,15 @@ class StatsManager {
     }
     
     func addScrollDistance(_ distance: Double, appIdentity: AppIdentity? = nil) {
-        ensureCurrentDay()
+        statsStateLock.lock()
+        ensureCurrentDayLocked()
         currentStats.scrollDistance += abs(distance)
         if let appIdentity = appIdentity {
-            updateAppStats(for: appIdentity) { stats in
+            updateAppStatsLocked(for: appIdentity) { stats in
                 stats.addScrollDistance(distance)
             }
         }
+        statsStateLock.unlock()
         scheduleDebouncedStatsUpdate()
     }
 
@@ -537,6 +573,104 @@ class StatsManager {
         inputRateLock.lock()
         inputRateBuckets[inputRateBucketIndex] += 1
         inputRateLock.unlock()
+    }
+
+    // MARK: - KPS/CPS 峰值追踪
+
+    /// Trailing 1-second sliding-window count of key events.
+    /// Peak KPS = max trailing 1-second sliding-window count observed today.
+    func recordKeyForPeakKPS() {
+        let now = ProcessInfo.processInfo.systemUptime
+        let cutoff = now - 1.0
+        statsStateLock.lock()
+        recentKeyTimestamps.append(now)
+        pruneKeyTimestamps(before: cutoff)
+        let currentKPS = recentKeyTimestamps.count - keyTimestampsHead
+        if currentKPS > currentStats.peakKPS {
+            currentStats.peakKPS = currentKPS
+        }
+        statsStateLock.unlock()
+    }
+
+    /// Trailing 1-second sliding-window count of click events.
+    /// Peak CPS = max trailing 1-second sliding-window count observed today.
+    func recordClickForPeakCPS() {
+        let now = ProcessInfo.processInfo.systemUptime
+        let cutoff = now - 1.0
+        statsStateLock.lock()
+        recentClickTimestamps.append(now)
+        pruneClickTimestamps(before: cutoff)
+        let currentCPS = recentClickTimestamps.count - clickTimestampsHead
+        if currentCPS > currentStats.peakCPS {
+            currentStats.peakCPS = currentCPS
+        }
+        statsStateLock.unlock()
+    }
+
+    // MARK: - 实时 KPS/CPS 查询
+
+    /// 获取当前实时 KPS（过去 1 秒内的按键数）
+    func getCurrentKPS() -> Int {
+        let cutoff = ProcessInfo.processInfo.systemUptime - 1.0
+        statsStateLock.lock()
+        pruneKeyTimestamps(before: cutoff)
+        let count = recentKeyTimestamps.count - keyTimestampsHead
+        statsStateLock.unlock()
+        return count
+    }
+
+    /// 获取当前实时 CPS（过去 1 秒内的点击数）
+    func getCurrentCPS() -> Int {
+        let cutoff = ProcessInfo.processInfo.systemUptime - 1.0
+        statsStateLock.lock()
+        pruneClickTimestamps(before: cutoff)
+        let count = recentClickTimestamps.count - clickTimestampsHead
+        statsStateLock.unlock()
+        return count
+    }
+
+    /// 获取当前 KPS/CPS 和峰值的快照（线程安全）
+    func currentRatesSnapshot() -> (currentKPS: Int, currentCPS: Int, peakKPS: Int, peakCPS: Int) {
+        let cutoff = ProcessInfo.processInfo.systemUptime - 1.0
+        statsStateLock.lock()
+        pruneKeyTimestamps(before: cutoff)
+        pruneClickTimestamps(before: cutoff)
+        let kps = recentKeyTimestamps.count - keyTimestampsHead
+        let cps = recentClickTimestamps.count - clickTimestampsHead
+        let peakKPS = currentStats.peakKPS
+        let peakCPS = currentStats.peakCPS
+        statsStateLock.unlock()
+        return (kps, cps, peakKPS, peakCPS)
+    }
+
+    // MARK: - 滑动窗口内部方法（调用前必须持有 statsStateLock）
+
+    private func pruneKeyTimestamps(before cutoff: TimeInterval) {
+        while keyTimestampsHead < recentKeyTimestamps.count && recentKeyTimestamps[keyTimestampsHead] <= cutoff {
+            keyTimestampsHead += 1
+        }
+        compactKeyTimestampsIfNeeded()
+    }
+
+    private func pruneClickTimestamps(before cutoff: TimeInterval) {
+        while clickTimestampsHead < recentClickTimestamps.count && recentClickTimestamps[clickTimestampsHead] <= cutoff {
+            clickTimestampsHead += 1
+        }
+        compactClickTimestampsIfNeeded()
+    }
+
+    private func compactKeyTimestampsIfNeeded() {
+        if keyTimestampsHead > 128 {
+            recentKeyTimestamps.removeFirst(keyTimestampsHead)
+            keyTimestampsHead = 0
+        }
+    }
+
+    private func compactClickTimestampsIfNeeded() {
+        if clickTimestampsHead > 128 {
+            recentClickTimestamps.removeFirst(clickTimestampsHead)
+            clickTimestampsHead = 0
+        }
     }
 
     private func resetInputRateBuckets() {
@@ -686,12 +820,28 @@ class StatsManager {
     // MARK: - 数据持久化
     
     private func saveStats() {
-        if let encoded = try? JSONEncoder().encode(currentStats) {
+        statsStateLock.lock()
+        let statsSnapshot = currentStats
+        let calendar = Calendar.current
+        let normalizedDate = calendar.startOfDay(for: statsSnapshot.date)
+        let key = dateFormatter.string(from: normalizedDate)
+        var normalizedStats = statsSnapshot
+        normalizedStats.date = normalizedDate
+        history[key] = normalizedStats
+        cachedHistoryStats = nil
+        cachedWeekdayStats = nil
+        cachedForDateKey = nil
+        let historySnapshot = history
+        statsStateLock.unlock()
+
+        if let encoded = try? JSONEncoder().encode(statsSnapshot) {
             userDefaults.set(encoded, forKey: statsKey)
         }
-        recordCurrentStatsToHistory()
+        if let encoded = try? JSONEncoder().encode(historySnapshot) {
+            userDefaults.set(encoded, forKey: historyKey)
+        }
     }
-    
+
     private func loadStats() -> DailyStats? {
         guard let data = userDefaults.data(forKey: statsKey),
               let stats = try? JSONDecoder().decode(DailyStats.self, from: data) else {
@@ -700,31 +850,12 @@ class StatsManager {
         return stats
     }
 
-    private func recordCurrentStatsToHistory() {
-        let calendar = Calendar.current
-        let normalizedDate = calendar.startOfDay(for: currentStats.date)
-        let key = dateFormatter.string(from: normalizedDate)
-        var stats = currentStats
-        stats.date = normalizedDate
-        history[key] = stats
-        cachedHistoryStats = nil
-        cachedWeekdayStats = nil
-        cachedForDateKey = nil
-        saveHistory()
-    }
-    
     private func loadHistory() -> [String: DailyStats] {
         guard let data = userDefaults.data(forKey: historyKey),
               let stored = try? JSONDecoder().decode([String: DailyStats].self, from: data) else {
             return [:]
         }
         return stored
-    }
-    
-    private func saveHistory() {
-        if let encoded = try? JSONEncoder().encode(history) {
-            userDefaults.set(encoded, forKey: historyKey)
-        }
     }
 
     // MARK: - 数据导入导出
@@ -754,9 +885,11 @@ class StatsManager {
     }
 
     func exportStatsData() throws -> Data {
+        statsStateLock.lock()
         var exportHistory = history
-        let normalizedDate = Calendar.current.startOfDay(for: currentStats.date)
         var current = currentStats
+        statsStateLock.unlock()
+        let normalizedDate = Calendar.current.startOfDay(for: current.date)
         current.date = normalizedDate
         let key = dateFormatter.string(from: normalizedDate)
         exportHistory[key] = current
@@ -809,12 +942,17 @@ class StatsManager {
             resolvedHistory = mergedHistory(base: currentHistorySnapshot(), imported: importedHistory)
         }
 
+        statsStateLock.lock()
         history = resolvedHistory
         currentStats = resolvedHistory[todayKey] ?? DailyStats(date: today)
-
+        recentKeyTimestamps.removeAll()
+        recentClickTimestamps.removeAll()
+        keyTimestampsHead = 0
+        clickTimestampsHead = 0
         cachedHistoryStats = nil
         cachedWeekdayStats = nil
         cachedForDateKey = nil
+        statsStateLock.unlock()
 
         saveTimer?.invalidate()
         saveTimer = nil
@@ -825,8 +963,12 @@ class StatsManager {
     }
 
     private func currentHistorySnapshot() -> [String: DailyStats] {
-        var snapshot = normalizedHistory(history)
-        let normalizedCurrent = normalizedDailyStats(currentStats)
+        statsStateLock.lock()
+        let historySnap = history
+        let current = currentStats
+        statsStateLock.unlock()
+        var snapshot = normalizedHistory(historySnap)
+        let normalizedCurrent = normalizedDailyStats(current)
         snapshot[dateFormatter.string(from: normalizedCurrent.date)] = normalizedCurrent
         return snapshot
     }
@@ -854,6 +996,8 @@ class StatsManager {
         merged.sideForwardClicks = safeAdd(lhs.sideForwardClicks, rhs.sideForwardClicks)
         merged.mouseDistance = safeAddDistance(lhs.mouseDistance, rhs.mouseDistance)
         merged.scrollDistance = safeAddDistance(lhs.scrollDistance, rhs.scrollDistance)
+        merged.peakKPS = max(lhs.peakKPS, rhs.peakKPS)
+        merged.peakCPS = max(lhs.peakCPS, rhs.peakCPS)
         merged.keyPressCounts = mergedCounterMap(lhs.keyPressCounts, rhs.keyPressCounts)
         merged.appStats = mergedAppStats(lhs.appStats, rhs.appStats)
         return merged
@@ -939,6 +1083,8 @@ class StatsManager {
         normalized.sideForwardClicks = max(0, normalized.sideForwardClicks)
         normalized.mouseDistance = normalized.mouseDistance.isFinite ? max(0, normalized.mouseDistance) : 0
         normalized.scrollDistance = normalized.scrollDistance.isFinite ? max(0, normalized.scrollDistance) : 0
+        normalized.peakKPS = max(0, normalized.peakKPS)
+        normalized.peakCPS = max(0, normalized.peakCPS)
         normalized.keyPressCounts = normalizedKeyPressCounts(normalized.keyPressCounts)
         normalized.appStats = normalizedAppStats(normalized.appStats)
         return normalized
@@ -968,10 +1114,17 @@ class StatsManager {
     }
 
     private func scheduleSave() {
-        guard saveTimer == nil else { return }
-        saveTimer = Timer.scheduledTimer(withTimeInterval: saveInterval, repeats: false) { [weak self] _ in
-            self?.saveTimer = nil
-            self?.saveStats()
+        let schedule = { [weak self] in
+            guard let self = self, self.saveTimer == nil else { return }
+            self.saveTimer = Timer.scheduledTimer(withTimeInterval: self.saveInterval, repeats: false) { [weak self] _ in
+                self?.saveTimer = nil
+                self?.saveStats()
+            }
+        }
+        if Thread.isMainThread {
+            schedule()
+        } else {
+            DispatchQueue.main.async(execute: schedule)
         }
     }
 
@@ -1035,30 +1188,38 @@ class StatsManager {
     }
 
     private func scheduleNextMidnightReset() {
-        midnightCheckTimer?.invalidate()
+        let doSchedule = { [weak self] in
+            guard let self = self else { return }
+            self.midnightCheckTimer?.invalidate()
 
-        // 使用日历计算下一次午夜，避免睡眠/时区变化导致的漂移
-        let calendar = Calendar.current
-        let now = Date()
-        guard let nextMidnight = calendar.nextDate(
-            after: now,
-            matching: DateComponents(hour: 0, minute: 0, second: 0),
-            matchingPolicy: .nextTime
-        ) else {
-            print("⚠️ 无法计算午夜时间")
-            return
+            // 使用日历计算下一次午夜，避免睡眠/时区变化导致的漂移
+            let calendar = Calendar.current
+            let now = Date()
+            guard let nextMidnight = calendar.nextDate(
+                after: now,
+                matching: DateComponents(hour: 0, minute: 0, second: 0),
+                matchingPolicy: .nextTime
+            ) else {
+                print("⚠️ 无法计算午夜时间")
+                return
+            }
+
+            let timeToMidnight = nextMidnight.timeIntervalSince(now)
+            print("📅 设置午夜重置：将在 \(Int(timeToMidnight)) 秒后（\(nextMidnight)）执行重置")
+
+            self.midnightCheckTimer = Timer.scheduledTimer(withTimeInterval: timeToMidnight, repeats: false) { [weak self] _ in
+                self?.performMidnightReset()
+            }
+
+            // 确保 timer 在所有 RunLoop 模式下都能运行
+            if let timer = self.midnightCheckTimer {
+                RunLoop.main.add(timer, forMode: .common)
+            }
         }
-
-        let timeToMidnight = nextMidnight.timeIntervalSince(now)
-        print("📅 设置午夜重置：将在 \(Int(timeToMidnight)) 秒后（\(nextMidnight)）执行重置")
-
-        midnightCheckTimer = Timer.scheduledTimer(withTimeInterval: timeToMidnight, repeats: false) { [weak self] _ in
-            self?.performMidnightReset()
-        }
-
-        // 确保 timer 在所有 RunLoop 模式下都能运行
-        if let timer = midnightCheckTimer {
-            RunLoop.current.add(timer, forMode: .common)
+        if Thread.isMainThread {
+            doSchedule()
+        } else {
+            DispatchQueue.main.async(execute: doSchedule)
         }
     }
 
@@ -1066,29 +1227,56 @@ class StatsManager {
         let now = Date()
         print("🌙 午夜重置触发：\(now)")
 
+        var didReset = false
+        statsStateLock.lock()
         if !Calendar.current.isDate(currentStats.date, inSameDayAs: now) {
-            resetStats(for: now)
+            resetStatsLocked(for: now)
+            didReset = true
+        }
+        statsStateLock.unlock()
+
+        if didReset {
+            updateNotificationBaselines()
+            notifyMenuBarUpdate()
+            notifyStatsUpdate()
         }
 
         scheduleNextMidnightReset()
     }
     
     func resetStats() {
-        resetStats(for: Date())
+        statsStateLock.lock()
+        resetStatsLocked(for: Date())
+        statsStateLock.unlock()
+        updateNotificationBaselines()
+        notifyMenuBarUpdate()
+        notifyStatsUpdate()
     }
 
-    private func ensureCurrentDay() {
+    /// 调用前必须持有 statsStateLock
+    private func ensureCurrentDayLocked() {
         let now = Date()
         if !Calendar.current.isDate(currentStats.date, inSameDayAs: now) {
-            resetStats(for: now)
+            resetStatsLocked(for: now)
         }
     }
 
     private func resetStats(for date: Date) {
-        currentStats = DailyStats(date: date)
+        statsStateLock.lock()
+        resetStatsLocked(for: date)
+        statsStateLock.unlock()
         updateNotificationBaselines()
         notifyMenuBarUpdate()
         notifyStatsUpdate()
+    }
+
+    /// 调用前必须持有 statsStateLock — 原子重置 currentStats 和滑动窗口
+    private func resetStatsLocked(for date: Date) {
+        currentStats = DailyStats(date: date)
+        recentKeyTimestamps.removeAll()
+        recentClickTimestamps.removeAll()
+        keyTimestampsHead = 0
+        clickTimestampsHead = 0
     }
     
     // MARK: - 格式化显示

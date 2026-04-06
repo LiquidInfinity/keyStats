@@ -43,6 +43,10 @@ public class StatsManager : IDisposable
     private bool _pendingStatsUpdate;
     private bool _pendingMouseMoveUpdate;
 
+    // KPS/CPS peak tracking (1-second sliding window)
+    private readonly Queue<DateTime> _recentKeyTimestamps = new();
+    private readonly Queue<DateTime> _recentClickTimestamps = new();
+
     private int _lastNotifiedKeyPresses;
     private int _lastNotifiedClicks;
 
@@ -167,6 +171,7 @@ public class StatsManager : IDisposable
             UpdateAppStats(appName, displayName, stats => stats.RecordKeyPress());
         }
 
+        RecordKeyForPeakKPS();
         NotifyStatsUpdate();
         NotifyKeyPressThresholdIfNeeded();
     }
@@ -180,6 +185,7 @@ public class StatsManager : IDisposable
             UpdateAppStats(appName, displayName, stats => stats.RecordLeftClick());
         }
 
+        RecordClickForPeakCPS();
         NotifyStatsUpdate();
         NotifyClickThresholdIfNeeded();
     }
@@ -193,6 +199,7 @@ public class StatsManager : IDisposable
             UpdateAppStats(appName, displayName, stats => stats.RecordRightClick());
         }
 
+        RecordClickForPeakCPS();
         NotifyStatsUpdate();
         NotifyClickThresholdIfNeeded();
     }
@@ -206,6 +213,7 @@ public class StatsManager : IDisposable
             UpdateAppStats(appName, displayName, stats => stats.RecordMiddleClick());
         }
 
+        RecordClickForPeakCPS();
         NotifyStatsUpdate();
         NotifyClickThresholdIfNeeded();
     }
@@ -219,6 +227,7 @@ public class StatsManager : IDisposable
             UpdateAppStats(appName, displayName, stats => stats.RecordSideBackClick());
         }
 
+        RecordClickForPeakCPS();
         NotifyStatsUpdate();
         NotifyClickThresholdIfNeeded();
     }
@@ -232,6 +241,7 @@ public class StatsManager : IDisposable
             UpdateAppStats(appName, displayName, stats => stats.RecordSideForwardClick());
         }
 
+        RecordClickForPeakCPS();
         NotifyStatsUpdate();
         NotifyClickThresholdIfNeeded();
     }
@@ -264,6 +274,44 @@ public class StatsManager : IDisposable
     private void EnsureCurrentDay()
     {
         SynchronizeCurrentDay(DateTime.Today, notifyStatsUpdate: true);
+    }
+
+    private void RecordKeyForPeakKPS()
+    {
+        var now = DateTime.UtcNow;
+        var cutoff = now.AddSeconds(-1.0);
+        lock (_lock)
+        {
+            _recentKeyTimestamps.Enqueue(now);
+            while (_recentKeyTimestamps.Count > 0 && _recentKeyTimestamps.Peek() <= cutoff)
+            {
+                _recentKeyTimestamps.Dequeue();
+            }
+            var currentKPS = (double)_recentKeyTimestamps.Count;
+            if (currentKPS > CurrentStats.PeakKPS)
+            {
+                CurrentStats.PeakKPS = currentKPS;
+            }
+        }
+    }
+
+    private void RecordClickForPeakCPS()
+    {
+        var now = DateTime.UtcNow;
+        var cutoff = now.AddSeconds(-1.0);
+        lock (_lock)
+        {
+            _recentClickTimestamps.Enqueue(now);
+            while (_recentClickTimestamps.Count > 0 && _recentClickTimestamps.Peek() <= cutoff)
+            {
+                _recentClickTimestamps.Dequeue();
+            }
+            var currentCPS = (double)_recentClickTimestamps.Count;
+            if (currentCPS > CurrentStats.PeakCPS)
+            {
+                CurrentStats.PeakCPS = currentCPS;
+            }
+        }
     }
 
     private void ScheduleSave()
@@ -946,6 +994,8 @@ public class StatsManager : IDisposable
             }
 
             CurrentStats = new DailyStats(normalizedTargetDate);
+            _recentKeyTimestamps.Clear();
+            _recentClickTimestamps.Clear();
             UpdateNotificationBaselines();
             changed = true;
         }

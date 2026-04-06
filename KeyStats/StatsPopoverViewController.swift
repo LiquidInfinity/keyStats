@@ -53,6 +53,10 @@ class StatsPopoverViewController: NSViewController {
     
     // 统计项视图
     private var keyPressView: StatItemView!
+    private var kpsBadge: KPSBadgeView!
+
+    private var kpsRefreshTimer: Timer?
+    private var kpsPopover: NSPopover?
     private var leftClickView: StatItemView!
     private var rightClickView: StatItemView!
     private var sideBackClickView: StatItemView!
@@ -60,6 +64,7 @@ class StatsPopoverViewController: NSViewController {
     private var sideClickRow: NSStackView!
     private var mouseDistanceView: StatItemView!
     private var scrollDistanceView: StatItemView!
+
     
     // 底部按钮
     private var quitButton: NSButton!
@@ -99,6 +104,7 @@ class StatsPopoverViewController: NSViewController {
         updateStats()
         startLiveUpdates()
         startUpdateAvailabilityUpdates()
+        startKPSRefreshTimer()
     }
 
     override func viewDidAppear() {
@@ -112,6 +118,8 @@ class StatsPopoverViewController: NSViewController {
         super.viewWillDisappear()
         stopLiveUpdates()
         stopUpdateAvailabilityUpdates()
+        stopKPSRefreshTimer()
+        closeKPSPopover()
     }
 
     override func viewDidLayout() {
@@ -140,24 +148,26 @@ class StatsPopoverViewController: NSViewController {
         ])
 
         // 标题
-        titleLabel = createLabel(text: "KeyStats", fontSize: 18, weight: .bold)
+        titleLabel = createLabel(text: "KeyStats", fontSize: 14, weight: .semibold)
         titleLabel.translatesAutoresizingMaskIntoConstraints = false
         containerView.addSubview(titleLabel)
-        
+
+        // KPS 徽章（放在标题右侧，双行显示峰值 KPS/CPS）
+        kpsBadge = KPSBadgeView()
+        kpsBadge.onTap = { [weak self] in self?.toggleKPSPopover() }
+        kpsBadge.translatesAutoresizingMaskIntoConstraints = false
+        updateKPSBadge()
+        containerView.addSubview(kpsBadge)
+
         permissionButton = NSButton(title: NSLocalizedString("button.permission", comment: ""), target: self, action: #selector(requestPermission))
         permissionButton.bezelStyle = .rounded
         permissionButton.controlSize = .regular
         permissionButton.translatesAutoresizingMaskIntoConstraints = false
         containerView.addSubview(permissionButton)
-
-        // 分隔线
-        let separator = NSBox()
-        separator.boxType = .separator
-        separator.translatesAutoresizingMaskIntoConstraints = false
-        containerView.addSubview(separator)
         
         // 统计项
         keyPressView = StatItemView(icon: "⌨️", title: NSLocalizedString("stats.keyPresses", comment: ""), value: "0")
+
         leftClickView = StatItemView(icon: "🖱️", title: NSLocalizedString("stats.leftClicks", comment: ""), value: "0")
         rightClickView = StatItemView(icon: "🖱️", title: NSLocalizedString("stats.rightClicks", comment: ""), value: "0")
         sideBackClickView = StatItemView(icon: "🖱️", title: NSLocalizedString("stats.sideBackClicks", comment: ""), value: "0")
@@ -458,18 +468,16 @@ class StatsPopoverViewController: NSViewController {
         NSLayoutConstraint.activate([
             // 标题
             titleLabel.topAnchor.constraint(equalTo: containerView.topAnchor, constant: 16),
-            titleLabel.centerXAnchor.constraint(equalTo: containerView.centerXAnchor),
+            titleLabel.leadingAnchor.constraint(equalTo: containerView.leadingAnchor, constant: 16),
+
+            kpsBadge.centerYAnchor.constraint(equalTo: titleLabel.centerYAnchor),
+            kpsBadge.leadingAnchor.constraint(equalTo: titleLabel.trailingAnchor, constant: 8),
 
             permissionButton.centerYAnchor.constraint(equalTo: titleLabel.centerYAnchor),
             permissionButton.trailingAnchor.constraint(equalTo: containerView.trailingAnchor, constant: -16),
             
-            // 分隔线
-            separator.topAnchor.constraint(equalTo: titleLabel.bottomAnchor, constant: 12),
-            separator.leadingAnchor.constraint(equalTo: containerView.leadingAnchor, constant: 16),
-            separator.trailingAnchor.constraint(equalTo: containerView.trailingAnchor, constant: -16),
-            
             // 统计项
-            statsStackView.topAnchor.constraint(equalTo: separator.bottomAnchor, constant: 12),
+            statsStackView.topAnchor.constraint(equalTo: titleLabel.bottomAnchor, constant: 8),
             statsStackView.leadingAnchor.constraint(equalTo: containerView.leadingAnchor, constant: 16),
             statsStackView.trailingAnchor.constraint(equalTo: containerView.trailingAnchor, constant: -16),
             
@@ -576,6 +584,7 @@ class StatsPopoverViewController: NSViewController {
         let hasSideClickData = (stats.sideBackClicks + stats.sideForwardClicks) > 0
         
         keyPressView.updateValue(formatNumber(stats.keyPresses))
+        updateKPSBadge()
         leftClickView.updateValue(formatNumber(stats.leftClicks))
         rightClickView.updateValue(formatNumber(stats.rightClicks))
         sideBackClickView.updateValue(formatNumber(stats.sideBackClicks))
@@ -611,6 +620,54 @@ class StatsPopoverViewController: NSViewController {
         pendingStatsRefresh = false
     }
 
+    // MARK: - KPS 实时刷新
+
+    private func updateKPSBadge() {
+        let stats = StatsManager.shared.currentStats
+        kpsBadge.update(peakKPS: stats.peakKPS, peakCPS: stats.peakCPS)
+    }
+
+    private func startKPSRefreshTimer() {
+        kpsRefreshTimer?.invalidate()
+        kpsRefreshTimer = Timer.scheduledTimer(withTimeInterval: 0.3, repeats: true) { [weak self] _ in
+            self?.updateKPSBadge()
+        }
+        if let timer = kpsRefreshTimer {
+            RunLoop.main.add(timer, forMode: .common)
+        }
+    }
+
+    private func stopKPSRefreshTimer() {
+        kpsRefreshTimer?.invalidate()
+        kpsRefreshTimer = nil
+    }
+
+    private func toggleKPSPopover() {
+        if let popover = kpsPopover, popover.isShown {
+            closeKPSPopover()
+        } else {
+            showKPSPopover()
+        }
+    }
+
+    private func showKPSPopover() {
+        closeKPSPopover()
+        let popover = NSPopover()
+        popover.behavior = .transient
+        popover.animates = true
+        popover.contentViewController = NSHostingController(rootView: KPSDetailView())
+        popover.contentSize = NSSize(width: 220, height: 170)
+        self.kpsPopover = popover
+        // 在徽章正下方弹出：用徽章底边的零高度矩形作为锚点
+        let bottomRect = NSRect(x: 0, y: 0, width: kpsBadge.bounds.width, height: 1)
+        popover.show(relativeTo: bottomRect, of: kpsBadge, preferredEdge: .minY)
+    }
+
+    private func closeKPSPopover() {
+        kpsPopover?.performClose(nil)
+        kpsPopover = nil
+    }
+
     private func startUpdateAvailabilityUpdates() {
         if let token = updateAvailabilityToken {
             UpdateManager.shared.removeUpdateAvailabilityHandler(token)
@@ -643,6 +700,11 @@ class StatsPopoverViewController: NSViewController {
         let formatter = NumberFormatter()
         formatter.numberStyle = .decimal
         return formatter.string(from: NSNumber(value: number)) ?? "\(number)"
+    }
+
+    private func formatRate(_ rate: Double) -> String {
+        if rate <= 0 { return "0" }
+        return String(format: "%.1f", rate)
     }
 
     private func updateKeyBreakdown() {
@@ -1941,5 +2003,89 @@ class StatsChartView: NSView {
         scaleAnimation.duration = transitionDuration
         scaleAnimation.timingFunction = timingFunction
         layer.add(scaleAnimation, forKey: "contentScale")
+    }
+}
+
+// MARK: - KPS 徽章视图
+
+/// 左侧大闪电图标占两行，右侧两行数字（峰值 KPS / CPS）
+class KPSBadgeView: NSView {
+    var onTap: (() -> Void)?
+
+    private let iconLabel: NSTextField
+    private let kpsLabel: NSTextField
+    private let cpsLabel: NSTextField
+
+    override init(frame frameRect: NSRect) {
+        iconLabel = NSTextField(labelWithString: "⚡️")
+        kpsLabel = NSTextField(labelWithString: "0")
+        cpsLabel = NSTextField(labelWithString: "0")
+        super.init(frame: frameRect)
+        setupUI()
+    }
+
+    required init?(coder: NSCoder) {
+        fatalError("init(coder:) has not been implemented")
+    }
+
+    private func setupUI() {
+        wantsLayer = true
+        layer?.backgroundColor = NSColor.controlBackgroundColor.withAlphaComponent(0.5).cgColor
+        toolTip = "KPS / CPS"
+
+        iconLabel.font = NSFont.systemFont(ofSize: 12)
+        iconLabel.alignment = .center
+        iconLabel.translatesAutoresizingMaskIntoConstraints = false
+        iconLabel.setContentHuggingPriority(.required, for: .horizontal)
+
+        let numFont = NSFont.monospacedDigitSystemFont(ofSize: 10, weight: .bold)
+        kpsLabel.font = numFont
+        kpsLabel.textColor = .secondaryLabelColor
+        kpsLabel.translatesAutoresizingMaskIntoConstraints = false
+
+        cpsLabel.font = numFont
+        cpsLabel.textColor = .secondaryLabelColor
+        cpsLabel.translatesAutoresizingMaskIntoConstraints = false
+
+        let rightStack = NSStackView(views: [kpsLabel, cpsLabel])
+        rightStack.orientation = .vertical
+        rightStack.alignment = .leading
+        rightStack.spacing = 0
+        rightStack.translatesAutoresizingMaskIntoConstraints = false
+
+        let mainStack = NSStackView(views: [iconLabel, rightStack])
+        mainStack.orientation = .horizontal
+        mainStack.alignment = .centerY
+        mainStack.spacing = 0
+        mainStack.translatesAutoresizingMaskIntoConstraints = false
+        addSubview(mainStack)
+
+        NSLayoutConstraint.activate([
+            mainStack.topAnchor.constraint(equalTo: topAnchor, constant: 2),
+            mainStack.bottomAnchor.constraint(equalTo: bottomAnchor, constant: -2),
+            mainStack.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 4),
+            mainStack.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -12)
+        ])
+
+        setContentHuggingPriority(.required, for: .horizontal)
+        setContentCompressionResistancePriority(.required, for: .horizontal)
+    }
+
+    override func layout() {
+        super.layout()
+        layer?.cornerRadius = bounds.height / 2
+    }
+
+    func update(peakKPS: Int, peakCPS: Int) {
+        kpsLabel.stringValue = "\(peakKPS)"
+        cpsLabel.stringValue = "\(peakCPS)"
+    }
+
+    override func mouseDown(with event: NSEvent) {
+        onTap?()
+    }
+
+    override func resetCursorRects() {
+        addCursorRect(bounds, cursor: .pointingHand)
     }
 }

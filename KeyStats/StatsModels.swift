@@ -23,6 +23,10 @@ struct DailyStats: Codable {
     var mouseDistance: Double
     var scrollDistance: Double
     var appStats: [String: AppStats]
+    /// 今日峰值 KPS（trailing 1-second sliding-window count 的当日最大值）
+    var peakKPS: Int
+    /// 今日峰值 CPS（trailing 1-second sliding-window count 的当日最大值）
+    var peakCPS: Int
 
     init() {
         self.date = Calendar.current.startOfDay(for: Date())
@@ -35,6 +39,8 @@ struct DailyStats: Codable {
         self.mouseDistance = 0
         self.scrollDistance = 0
         self.appStats = [:]
+        self.peakKPS = 0
+        self.peakCPS = 0
     }
 
     init(date: Date) {
@@ -48,6 +54,19 @@ struct DailyStats: Codable {
         self.mouseDistance = 0
         self.scrollDistance = 0
         self.appStats = [:]
+        self.peakKPS = 0
+        self.peakCPS = 0
+    }
+
+    /// Decode peakKPS/peakCPS from either Int or Double (legacy format)
+    private static func decodeIntOrDouble(container: KeyedDecodingContainer<CodingKeys>, key: CodingKeys) -> Int {
+        if let intVal = try? container.decodeIfPresent(Int.self, forKey: key) {
+            return intVal
+        }
+        if let doubleVal = try? container.decodeIfPresent(Double.self, forKey: key) {
+            return Int(doubleVal)
+        }
+        return 0
     }
 
     enum CodingKeys: String, CodingKey {
@@ -62,6 +81,8 @@ struct DailyStats: Codable {
         case mouseDistance
         case scrollDistance
         case appStats
+        case peakKPS
+        case peakCPS
     }
 
     init(from decoder: Decoder) throws {
@@ -79,6 +100,8 @@ struct DailyStats: Codable {
         mouseDistance = try container.decodeIfPresent(Double.self, forKey: .mouseDistance) ?? 0
         scrollDistance = try container.decodeIfPresent(Double.self, forKey: .scrollDistance) ?? 0
         appStats = try container.decodeIfPresent([String: AppStats].self, forKey: .appStats) ?? [:]
+        peakKPS = Self.decodeIntOrDouble(container: container, key: .peakKPS)
+        peakCPS = Self.decodeIntOrDouble(container: container, key: .peakCPS)
     }
 
     func encode(to encoder: Encoder) throws {
@@ -93,6 +116,8 @@ struct DailyStats: Codable {
         try container.encode(mouseDistance, forKey: .mouseDistance)
         try container.encode(scrollDistance, forKey: .scrollDistance)
         try container.encode(appStats, forKey: .appStats)
+        try container.encode(peakKPS, forKey: .peakKPS)
+        try container.encode(peakCPS, forKey: .peakCPS)
     }
 
     var totalClicks: Int {
