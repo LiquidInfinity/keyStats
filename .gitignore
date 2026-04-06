@@ -42,4 +42,4 @@ fastlane/test_output
 .entire/logs/entire.log
 
 # Claude
-.claude/
+.claude/settings.json
