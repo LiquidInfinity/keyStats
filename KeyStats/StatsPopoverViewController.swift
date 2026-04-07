@@ -242,8 +242,8 @@ class StatsPopoverViewController: NSViewController {
         let heatmapTooltipTitle = isChinese ? "键盘热力图" : "Keyboard Heatmap"
         keyboardHeatmapButton = NSButton(title: heatmapEntryTitle, target: self, action: #selector(showKeyboardHeatmap))
         keyboardHeatmapButton.bezelStyle = .rounded
-        keyboardHeatmapButton.controlSize = .mini
-        keyboardHeatmapButton.font = NSFont.systemFont(ofSize: 12, weight: .medium)
+        keyboardHeatmapButton.controlSize = .small
+        keyboardHeatmapButton.font = NSFont.systemFont(ofSize: 11, weight: .regular)
         keyboardHeatmapButton.toolTip = heatmapTooltipTitle
         keyboardHeatmapButton.setAccessibilityLabel(heatmapTooltipTitle)
         keyboardHeatmapButton.translatesAutoresizingMaskIntoConstraints = false
@@ -466,7 +466,7 @@ class StatsPopoverViewController: NSViewController {
             // 统计项
             statsStackView.topAnchor.constraint(equalTo: titleLabel.bottomAnchor, constant: 8),
             statsStackView.leadingAnchor.constraint(equalTo: containerView.leadingAnchor, constant: 16),
-            statsStackView.trailingAnchor.constraint(equalTo: containerView.trailingAnchor, constant: -8),
+            statsStackView.trailingAnchor.constraint(equalTo: containerView.trailingAnchor, constant: -16),
             
             // 键位统计
             keyBreakdownTitleLabel.topAnchor.constraint(equalTo: statsStackView.bottomAnchor, constant: 12),
@@ -1028,7 +1028,8 @@ struct AnimatedStatValueView: View {
                     .foregroundStyle(Color(nsColor: .systemBlue))
             }
         }
-        .fixedSize(horizontal: true, vertical: false)
+        .lineLimit(1)
+        .minimumScaleFactor(0.85)
         .animation(.default, value: viewModel.text)
     }
 }
@@ -1082,6 +1083,8 @@ class StatItemView: NSView {
     
     private func setupUI(icon: String, title: String, value: String) {
         translatesAutoresizingMaskIntoConstraints = false
+        setContentHuggingPriority(.defaultLow, for: .horizontal)
+        setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
         setContentHuggingPriority(.required, for: .vertical)
         setContentCompressionResistancePriority(.required, for: .vertical)
         
@@ -1104,7 +1107,7 @@ class StatItemView: NSView {
         valueViewModel = AnimatedStatValueViewModel(text: value)
         valueHostingView = NSHostingView(rootView: AnimatedStatValueView(viewModel: valueViewModel))
         valueHostingView.translatesAutoresizingMaskIntoConstraints = false
-        valueHostingView.setContentCompressionResistancePriority(.required, for: .horizontal)
+        valueHostingView.setContentCompressionResistancePriority(.defaultHigh, for: .horizontal)
         valueHostingView.setContentHuggingPriority(.required, for: .horizontal)
         addSubview(valueHostingView)
         
