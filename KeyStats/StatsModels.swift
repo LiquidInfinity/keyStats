@@ -88,23 +88,71 @@ func standaloneModifierHeatmapKeyName(for keyCode: Int) -> String? {
     }
 }
 
-func isStandaloneModifierPress(rawFlags: UInt64, keyCode: Int) -> Bool {
+private enum StandaloneModifierFamily {
+    case shift
+    case option
+    case command
+}
+
+private func standaloneModifierFamily(for keyCode: Int) -> StandaloneModifierFamily? {
     switch keyCode {
-    case 55:
-        return rawFlags & leftCommandRawMask != 0
-    case 54:
-        return rawFlags & rightCommandRawMask != 0
-    case 56:
-        return rawFlags & leftShiftRawMask != 0
-    case 60:
-        return rawFlags & rightShiftRawMask != 0
-    case 58:
-        return rawFlags & leftOptionRawMask != 0
-    case 61:
-        return rawFlags & rightOptionRawMask != 0
+    case 55, 54:
+        return .command
+    case 56, 60:
+        return .shift
+    case 58, 61:
+        return .option
     default:
-        return false
+        return nil
     }
+}
+
+private func standaloneModifierFamily(for keyName: String) -> StandaloneModifierFamily? {
+    switch keyName {
+    case "Cmd":
+        return .command
+    case "LeftCmd", "RightCmd":
+        return .command
+    case "Shift":
+        return .shift
+    case "LeftShift", "RightShift":
+        return .shift
+    case "Option":
+        return .option
+    case "LeftOption", "RightOption":
+        return .option
+    default:
+        return nil
+    }
+}
+
+private func standaloneModifierKeyName(from rawFlags: UInt64, family: StandaloneModifierFamily) -> String? {
+    switch family {
+    case .shift:
+        if rawFlags & rightShiftRawMask != 0 { return "RightShift" }
+        if rawFlags & leftShiftRawMask != 0 { return "LeftShift" }
+    case .option:
+        if rawFlags & rightOptionRawMask != 0 { return "RightOption" }
+        if rawFlags & leftOptionRawMask != 0 { return "LeftOption" }
+    case .command:
+        if rawFlags & rightCommandRawMask != 0 { return "RightCmd" }
+        if rawFlags & leftCommandRawMask != 0 { return "LeftCmd" }
+    }
+
+    return nil
+}
+
+func standaloneModifierHeatmapKeyName(for keyCode: Int, rawFlags: UInt64) -> String? {
+    guard let family = standaloneModifierFamily(for: keyCode) else {
+        return standaloneModifierHeatmapKeyName(for: keyCode)
+    }
+
+    return standaloneModifierKeyName(from: rawFlags, family: family) ?? standaloneModifierHeatmapKeyName(for: keyCode)
+}
+
+func isStandaloneModifierPress(rawFlags: UInt64, keyCode: Int) -> Bool {
+    guard let family = standaloneModifierFamily(for: keyCode) else { return false }
+    return standaloneModifierKeyName(from: rawFlags, family: family) != nil
 }
 
 func isStandaloneHeatmapModifierKey(_ keyName: String) -> Bool {
@@ -167,20 +215,37 @@ struct ModifierStandaloneTracker {
     private var pendingModifierKeys: Set<String> = []
 
     mutating func handleFlagsChanged(keyCode: Int, rawFlags: UInt64) -> String? {
-        guard let modifierKey = standaloneModifierHeatmapKeyName(for: keyCode) else { return nil }
+        guard let modifierFamily = standaloneModifierFamily(for: keyCode) else { return nil }
+        let modifierKey = standaloneModifierHeatmapKeyName(for: keyCode, rawFlags: rawFlags)
 
         if isStandaloneModifierPress(rawFlags: rawFlags, keyCode: keyCode) {
-            pendingModifierKeys.insert(modifierKey)
+            if let modifierKey {
+                pendingModifierKeys.insert(modifierKey)
+            }
             return nil
         }
 
-        guard pendingModifierKeys.remove(modifierKey) != nil else { return nil }
-        return modifierKey
+        if let modifierKey, pendingModifierKeys.remove(modifierKey) != nil {
+            return modifierKey
+        }
+
+        guard let familyMatch = pendingModifierKeys.first(where: { standaloneModifierFamily(for: $0) == modifierFamily }) else {
+            return nil
+        }
+
+        pendingModifierKeys.remove(familyMatch)
+        return familyMatch
     }
 
     mutating func consumePendingModifiers(forKeyDownWith rawFlags: UInt64, keyCode: Int) {
-        for modifierKey in keyboardEventModifierNames(rawFlags: rawFlags, keyCode: keyCode) where isStandaloneHeatmapModifierKey(modifierKey) {
-            pendingModifierKeys.remove(modifierKey)
+        for modifierKey in keyboardEventModifierNames(rawFlags: rawFlags, keyCode: keyCode) {
+            if isStandaloneHeatmapModifierKey(modifierKey) {
+                pendingModifierKeys.remove(modifierKey)
+                continue
+            }
+
+            guard let family = standaloneModifierFamily(for: modifierKey) else { continue }
+            pendingModifierKeys = pendingModifierKeys.filter { standaloneModifierFamily(for: $0) != family }
         }
     }
 

@@ -144,7 +144,7 @@ final class StatsModelsTests: XCTestCase {
         XCTAssertEqual(standaloneModifierHeatmapKeyName(for: 55), "LeftCmd")
         XCTAssertEqual(standaloneModifierHeatmapKeyName(for: 54), "RightCmd")
         XCTAssertTrue(isStandaloneModifierPress(rawFlags: UInt64(NX_DEVICERSHIFTKEYMASK), keyCode: 60))
-        XCTAssertFalse(isStandaloneModifierPress(rawFlags: UInt64(NX_DEVICELSHIFTKEYMASK), keyCode: 60))
+        XCTAssertTrue(isStandaloneModifierPress(rawFlags: UInt64(NX_DEVICELSHIFTKEYMASK), keyCode: 60))
     }
 
     func testModifierStandaloneTrackerCommitsSingleModifierPressOnRelease() {
@@ -167,6 +167,17 @@ final class StatsModelsTests: XCTestCase {
         )
 
         let committed = tracker.handleFlagsChanged(keyCode: 55, rawFlags: 0)
+
+        XCTAssertNil(committed)
+    }
+
+    func testModifierStandaloneTrackerSuppressesStandaloneCountWhenComboOnlyHasGenericModifierFlag() {
+        var tracker = ModifierStandaloneTracker()
+
+        XCTAssertNil(tracker.handleFlagsChanged(keyCode: 54, rawFlags: UInt64(NX_DEVICERCMDKEYMASK)))
+        tracker.consumePendingModifiers(forKeyDownWith: CGEventFlags.maskCommand.rawValue, keyCode: 8)
+
+        let committed = tracker.handleFlagsChanged(keyCode: 54, rawFlags: 0)
 
         XCTAssertNil(committed)
     }
@@ -205,5 +216,25 @@ final class StatsModelsTests: XCTestCase {
         XCTAssertEqual(counts["A"], 9)
         XCTAssertNil(counts["LeftCmd+C"])
         XCTAssertNil(counts["RightShift"])
+    }
+
+    func testModifierStandaloneTrackerUsesSideSpecificRawFlagsWhenKeyCodeLooksGeneric() {
+        var tracker = ModifierStandaloneTracker()
+
+        XCTAssertNil(tracker.handleFlagsChanged(keyCode: 56, rawFlags: UInt64(NX_DEVICERSHIFTKEYMASK)))
+
+        let committed = tracker.handleFlagsChanged(keyCode: 56, rawFlags: 0)
+
+        XCTAssertEqual(committed, "RightShift")
+    }
+
+    func testModifierStandaloneTrackerReleasesPendingModifierByFamilyWhenReleaseKeyCodeDiffers() {
+        var tracker = ModifierStandaloneTracker()
+
+        XCTAssertNil(tracker.handleFlagsChanged(keyCode: 60, rawFlags: UInt64(NX_DEVICERSHIFTKEYMASK)))
+
+        let committed = tracker.handleFlagsChanged(keyCode: 56, rawFlags: 0)
+
+        XCTAssertEqual(committed, "RightShift")
     }
 }
