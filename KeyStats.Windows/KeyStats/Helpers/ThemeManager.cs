@@ -85,9 +85,12 @@ public sealed class ThemeManager : IDisposable
         SetColor(res, "TextSecondaryColor", "#5C5C5C");
         SetColor(res, "TextTertiaryColor", "#8A8A8A");
         SetColor(res, "SurfaceColor", "#FAFAFA");
-        SetColor(res, "CardColor", "#FFFFFF");
+        SetColor(res, "WindowSurfaceColor", "#B8FAFAFA");
+        SetColor(res, "CardColor", "#CCFFFFFF");
+        SetColor(res, "TrayPopupBorderColor", "#20000000");
+        SetColor(res, "TrayBackdropTintColor", "#B8FAFAFA");
         SetColor(res, "DividerColor", "#E5E5E5");
-        SetColor(res, "SubtleFillColor", "#09000000");
+        SetColor(res, "SubtleFillColor", "#A8FFFFFF");
         SetColor(res, "SubtleHoverColor", "#12000000");
 
         SetBrush(res, "AccentBrush", "#0067C0");
@@ -96,9 +99,12 @@ public sealed class ThemeManager : IDisposable
         SetBrush(res, "TextSecondaryBrush", "#5C5C5C");
         SetBrush(res, "TextTertiaryBrush", "#8A8A8A");
         SetBrush(res, "SurfaceBrush", "#FAFAFA");
-        SetBrush(res, "CardBrush", "#FFFFFF");
+        SetBrush(res, "WindowSurfaceBrush", "#B8FAFAFA");
+        SetBrush(res, "CardBrush", "#CCFFFFFF");
+        SetBrush(res, "TrayPopupBorderBrush", "#20000000");
+        SetBrush(res, "TrayBackdropTintBrush", "#B8FAFAFA");
         SetBrush(res, "DividerBrush", "#E5E5E5");
-        SetBrush(res, "SubtleFillBrush", "#09000000");
+        SetBrush(res, "SubtleFillBrush", "#A8FFFFFF");
         SetBrush(res, "SubtleHoverBrush", "#12000000");
         SetBrush(res, "ChartLineBrush", "#0067C0");
         SetBrush(res, "ChartFillBrush", "#200067C0");
@@ -119,9 +125,12 @@ public sealed class ThemeManager : IDisposable
         SetColor(res, "TextSecondaryColor", "#C5C5C5");
         SetColor(res, "TextTertiaryColor", "#8A8A8A");
         SetColor(res, "SurfaceColor", "#202020");
-        SetColor(res, "CardColor", "#2D2D2D");
+        SetColor(res, "WindowSurfaceColor", "#C8141414");
+        SetColor(res, "CardColor", "#CC1A1A1A");
+        SetColor(res, "TrayPopupBorderColor", "#33FFFFFF");
+        SetColor(res, "TrayBackdropTintColor", "#A8202020");
         SetColor(res, "DividerColor", "#3D3D3D");
-        SetColor(res, "SubtleFillColor", "#0FFFFFFF");
+        SetColor(res, "SubtleFillColor", "#90161616");
         SetColor(res, "SubtleHoverColor", "#15FFFFFF");
 
         SetBrush(res, "AccentBrush", "#0078D4");
@@ -130,9 +139,12 @@ public sealed class ThemeManager : IDisposable
         SetBrush(res, "TextSecondaryBrush", "#C5C5C5");
         SetBrush(res, "TextTertiaryBrush", "#8A8A8A");
         SetBrush(res, "SurfaceBrush", "#202020");
-        SetBrush(res, "CardBrush", "#2D2D2D");
+        SetBrush(res, "WindowSurfaceBrush", "#C8141414");
+        SetBrush(res, "CardBrush", "#CC1A1A1A");
+        SetBrush(res, "TrayPopupBorderBrush", "#33FFFFFF");
+        SetBrush(res, "TrayBackdropTintBrush", "#A8202020");
         SetBrush(res, "DividerBrush", "#3D3D3D");
-        SetBrush(res, "SubtleFillBrush", "#0FFFFFFF");
+        SetBrush(res, "SubtleFillBrush", "#90161616");
         SetBrush(res, "SubtleHoverBrush", "#15FFFFFF");
         SetBrush(res, "ChartLineBrush", "#0078D4");
         SetBrush(res, "ChartFillBrush", "#200078D4");

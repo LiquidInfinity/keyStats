@@ -174,6 +174,7 @@ public class StatsManager : IDisposable
         RecordKeyForPeakKPS();
         NotifyStatsUpdate();
         NotifyKeyPressThresholdIfNeeded();
+        ScheduleSave();
     }
 
     private void OnLeftClick(string appName, string displayName)
@@ -188,6 +189,7 @@ public class StatsManager : IDisposable
         RecordClickForPeakCPS();
         NotifyStatsUpdate();
         NotifyClickThresholdIfNeeded();
+        ScheduleSave();
     }
 
     private void OnRightClick(string appName, string displayName)
@@ -202,6 +204,7 @@ public class StatsManager : IDisposable
         RecordClickForPeakCPS();
         NotifyStatsUpdate();
         NotifyClickThresholdIfNeeded();
+        ScheduleSave();
     }
 
     private void OnMiddleClick(string appName, string displayName)
@@ -216,6 +219,7 @@ public class StatsManager : IDisposable
         RecordClickForPeakCPS();
         NotifyStatsUpdate();
         NotifyClickThresholdIfNeeded();
+        ScheduleSave();
     }
 
     private void OnSideBackClick(string appName, string displayName)
@@ -230,6 +234,7 @@ public class StatsManager : IDisposable
         RecordClickForPeakCPS();
         NotifyStatsUpdate();
         NotifyClickThresholdIfNeeded();
+        ScheduleSave();
     }
 
     private void OnSideForwardClick(string appName, string displayName)
@@ -244,6 +249,7 @@ public class StatsManager : IDisposable
         RecordClickForPeakCPS();
         NotifyStatsUpdate();
         NotifyClickThresholdIfNeeded();
+        ScheduleSave();
     }
 
     private void OnMouseMoved(double distance)
@@ -318,22 +324,39 @@ public class StatsManager : IDisposable
     {
         lock (_lock)
         {
-            if (_pendingSave) return;
             _pendingSave = true;
-        }
 
-        _saveTimer?.Stop();
-        _saveTimer = new Timer(_saveInterval);
-        _saveTimer.Elapsed += (_, _) =>
-        {
-            _saveTimer?.Stop();
-            lock (_lock)
+            if (_saveTimer == null)
             {
-                _pendingSave = false;
+                _saveTimer = new Timer(_saveInterval)
+                {
+                    AutoReset = false
+                };
+                _saveTimer.Elapsed += (_, _) =>
+                {
+                    lock (_lock)
+                    {
+                        if (!_pendingSave)
+                        {
+                            return;
+                        }
+
+                        _pendingSave = false;
+                    }
+
+                    SaveStats();
+                };
             }
-            SaveStats();
-        };
-        _saveTimer.Start();
+
+            var saveTimer = _saveTimer;
+            if (saveTimer == null)
+            {
+                return;
+            }
+
+            saveTimer.Stop();
+            saveTimer.Start();
+        }
     }
 
     private void ScheduleDebouncedStatsUpdate()
@@ -477,6 +500,8 @@ public class StatsManager : IDisposable
             SideForwardClicks = CurrentStats.SideForwardClicks,
             MouseDistance = CurrentStats.MouseDistance,
             ScrollDistance = CurrentStats.ScrollDistance,
+            PeakKPS = CurrentStats.PeakKPS,
+            PeakCPS = CurrentStats.PeakCPS,
             KeyPressCounts = new Dictionary<string, int>(CurrentStats.KeyPressCounts),
             AppStats = CurrentStats.AppStats.ToDictionary(k => k.Key, v => new AppStats(v.Value))
         };
@@ -719,6 +744,8 @@ public class StatsManager : IDisposable
             SideForwardClicks = source.SideForwardClicks,
             MouseDistance = source.MouseDistance,
             ScrollDistance = source.ScrollDistance,
+            PeakKPS = source.PeakKPS,
+            PeakCPS = source.PeakCPS,
             KeyPressCounts = new Dictionary<string, int>(source.KeyPressCounts),
             AppStats = source.AppStats.ToDictionary(k => k.Key, v => new AppStats(v.Value))
         };
@@ -820,6 +847,8 @@ public class StatsManager : IDisposable
             SideForwardClicks = Math.Max(0, source?.SideForwardClicks ?? 0),
             MouseDistance = SanitizeDistance(source?.MouseDistance ?? 0),
             ScrollDistance = SanitizeDistance(source?.ScrollDistance ?? 0),
+            PeakKPS = Math.Max(0, source?.PeakKPS ?? 0),
+            PeakCPS = Math.Max(0, source?.PeakCPS ?? 0),
             AppStats = appStats
         };
     }
@@ -875,6 +904,8 @@ public class StatsManager : IDisposable
             SideForwardClicks = normalizedExisting.SideForwardClicks + normalizedIncoming.SideForwardClicks,
             MouseDistance = normalizedExisting.MouseDistance + normalizedIncoming.MouseDistance,
             ScrollDistance = normalizedExisting.ScrollDistance + normalizedIncoming.ScrollDistance,
+            PeakKPS = Math.Max(normalizedExisting.PeakKPS, normalizedIncoming.PeakKPS),
+            PeakCPS = Math.Max(normalizedExisting.PeakCPS, normalizedIncoming.PeakCPS),
             KeyPressCounts = keyPressCounts,
             AppStats = appStats
         };
