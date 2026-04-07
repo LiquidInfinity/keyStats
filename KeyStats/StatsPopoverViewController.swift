@@ -242,28 +242,15 @@ class StatsPopoverViewController: NSViewController {
         let heatmapTooltipTitle = isChinese ? "键盘热力图" : "Keyboard Heatmap"
         keyboardHeatmapButton = NSButton(title: heatmapEntryTitle, target: self, action: #selector(showKeyboardHeatmap))
         keyboardHeatmapButton.bezelStyle = .rounded
-        keyboardHeatmapButton.controlSize = .small
+        keyboardHeatmapButton.controlSize = .mini
         keyboardHeatmapButton.font = NSFont.systemFont(ofSize: 12, weight: .medium)
         keyboardHeatmapButton.toolTip = heatmapTooltipTitle
         keyboardHeatmapButton.setAccessibilityLabel(heatmapTooltipTitle)
         keyboardHeatmapButton.translatesAutoresizingMaskIntoConstraints = false
         keyboardHeatmapButton.setContentHuggingPriority(.required, for: .horizontal)
         keyboardHeatmapButton.setContentCompressionResistancePriority(.required, for: .horizontal)
-
-        let keyBreakdownHeaderStack = NSStackView()
-        keyBreakdownHeaderStack.orientation = .horizontal
-        keyBreakdownHeaderStack.alignment = .centerY
-        keyBreakdownHeaderStack.spacing = 8
-        keyBreakdownHeaderStack.translatesAutoresizingMaskIntoConstraints = false
-
-        let keyBreakdownHeaderSpacer = NSView()
-        keyBreakdownHeaderSpacer.setContentHuggingPriority(.defaultLow, for: .horizontal)
-        keyBreakdownHeaderSpacer.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
-
-        keyBreakdownHeaderStack.addArrangedSubview(keyBreakdownTitleLabel)
-        keyBreakdownHeaderStack.addArrangedSubview(keyBreakdownHeaderSpacer)
-        keyBreakdownHeaderStack.addArrangedSubview(keyboardHeatmapButton)
-        containerView.addSubview(keyBreakdownHeaderStack)
+        containerView.addSubview(keyBreakdownTitleLabel)
+        containerView.addSubview(keyboardHeatmapButton)
 
         // 键位统计列表（最多 3 列，每列 5 个）
         keyBreakdownGridStack = NSStackView()
@@ -442,7 +429,7 @@ class StatsPopoverViewController: NSViewController {
 
         let footerStack = NSStackView()
         footerStack.orientation = .horizontal
-        footerStack.alignment = .bottom
+        footerStack.alignment = .centerY
         footerStack.spacing = 12
         footerStack.translatesAutoresizingMaskIntoConstraints = false
 
@@ -479,14 +466,17 @@ class StatsPopoverViewController: NSViewController {
             // 统计项
             statsStackView.topAnchor.constraint(equalTo: titleLabel.bottomAnchor, constant: 8),
             statsStackView.leadingAnchor.constraint(equalTo: containerView.leadingAnchor, constant: 16),
-            statsStackView.trailingAnchor.constraint(equalTo: containerView.trailingAnchor, constant: -16),
+            statsStackView.trailingAnchor.constraint(equalTo: containerView.trailingAnchor, constant: -8),
             
             // 键位统计
-            keyBreakdownHeaderStack.topAnchor.constraint(equalTo: statsStackView.bottomAnchor, constant: 8),
-            keyBreakdownHeaderStack.leadingAnchor.constraint(equalTo: containerView.leadingAnchor, constant: 16),
-            keyBreakdownHeaderStack.trailingAnchor.constraint(equalTo: containerView.trailingAnchor, constant: -16),
+            keyBreakdownTitleLabel.topAnchor.constraint(equalTo: statsStackView.bottomAnchor, constant: 12),
+            keyBreakdownTitleLabel.leadingAnchor.constraint(equalTo: containerView.leadingAnchor, constant: 16),
 
-            keyBreakdownGridStack.topAnchor.constraint(equalTo: keyBreakdownHeaderStack.bottomAnchor, constant: 8),
+            keyboardHeatmapButton.centerYAnchor.constraint(equalTo: keyBreakdownTitleLabel.centerYAnchor),
+            keyboardHeatmapButton.leadingAnchor.constraint(greaterThanOrEqualTo: keyBreakdownTitleLabel.trailingAnchor, constant: 8),
+            keyboardHeatmapButton.trailingAnchor.constraint(equalTo: containerView.trailingAnchor, constant: -16),
+
+            keyBreakdownGridStack.topAnchor.constraint(equalTo: keyBreakdownTitleLabel.bottomAnchor, constant: 8),
             keyBreakdownGridStack.leadingAnchor.constraint(equalTo: containerView.leadingAnchor, constant: 16),
             keyBreakdownGridStack.trailingAnchor.constraint(equalTo: containerView.trailingAnchor, constant: -16),
             keyBreakdownGridStack.heightAnchor.constraint(equalToConstant: 124),
@@ -521,10 +511,10 @@ class StatsPopoverViewController: NSViewController {
             bottomSeparator.trailingAnchor.constraint(equalTo: containerView.trailingAnchor, constant: -16),
             
             // 按钮
-            footerStack.topAnchor.constraint(equalTo: bottomSeparator.bottomAnchor, constant: 12),
+            footerStack.topAnchor.constraint(equalTo: bottomSeparator.bottomAnchor, constant: 6),
             footerStack.leadingAnchor.constraint(equalTo: containerView.leadingAnchor, constant: 16),
             footerStack.trailingAnchor.constraint(equalTo: containerView.trailingAnchor, constant: -16),
-            footerStack.bottomAnchor.constraint(equalTo: containerView.bottomAnchor, constant: -16)
+            footerStack.bottomAnchor.constraint(equalTo: containerView.bottomAnchor, constant: -10)
         ])
 
     }
@@ -967,6 +957,12 @@ class StatsPopoverViewController: NSViewController {
         }
         let statsSpacing = CGFloat(max(0, statsRows.count - 1)) * statsStackView.spacing
 
+        let titleRowHeight = max(
+            titleLabel.fittingSize.height,
+            kpsBadge.fittingSize.height,
+            permissionButton.isHidden ? 0 : permissionButton.fittingSize.height
+        )
+
         let footerHeight = max(
             settingsButton.fittingSize.height,
             appStatsButton.fittingSize.height,
@@ -978,11 +974,10 @@ class StatsPopoverViewController: NSViewController {
         let keyBreakdownHeaderHeight = max(keyBreakdownTitleLabel.fittingSize.height, keyboardHeatmapButton.fittingSize.height)
 
         let computedHeight =
-            16 + titleLabel.fittingSize.height +
-            12 + // title -> separator
-            12 + // separator -> stats stack
+            16 + titleRowHeight +
+            8 + // title -> stats stack
             statsRowsHeight + statsSpacing +
-            8 + // stats stack -> key breakdown title
+            12 + // stats stack -> key breakdown title
             keyBreakdownHeaderHeight +
             8 + // key breakdown title -> grid
             keyBreakdownGridHeight +
@@ -994,9 +989,9 @@ class StatsPopoverViewController: NSViewController {
             8 + chartHeight +
             6 + historySummaryLabel.fittingSize.height +
             16 + // summary -> bottom separator
-            12 + // bottom separator -> footer
+            6 + // bottom separator -> footer
             footerHeight +
-            16   // footer -> container bottom
+            10   // footer -> container bottom
 
         let targetSize = NSSize(width: popoverContentWidth, height: ceil(computedHeight))
         guard preferredContentSize != targetSize else { return }
@@ -2033,12 +2028,12 @@ class KPSBadgeView: NSView {
         layer?.backgroundColor = NSColor.controlBackgroundColor.withAlphaComponent(0.5).cgColor
         toolTip = "KPS / CPS"
 
-        iconLabel.font = NSFont.systemFont(ofSize: 12)
+        iconLabel.font = NSFont.systemFont(ofSize: 10)
         iconLabel.alignment = .center
         iconLabel.translatesAutoresizingMaskIntoConstraints = false
         iconLabel.setContentHuggingPriority(.required, for: .horizontal)
 
-        let numFont = NSFont.monospacedDigitSystemFont(ofSize: 10, weight: .bold)
+        let numFont = NSFont.monospacedDigitSystemFont(ofSize: 9, weight: .medium)
         kpsLabel.font = numFont
         kpsLabel.textColor = .secondaryLabelColor
         kpsLabel.translatesAutoresizingMaskIntoConstraints = false
@@ -2056,15 +2051,15 @@ class KPSBadgeView: NSView {
         let mainStack = NSStackView(views: [iconLabel, rightStack])
         mainStack.orientation = .horizontal
         mainStack.alignment = .centerY
-        mainStack.spacing = 0
+        mainStack.spacing = 1
         mainStack.translatesAutoresizingMaskIntoConstraints = false
         addSubview(mainStack)
 
         NSLayoutConstraint.activate([
-            mainStack.topAnchor.constraint(equalTo: topAnchor, constant: 2),
-            mainStack.bottomAnchor.constraint(equalTo: bottomAnchor, constant: -2),
+            mainStack.topAnchor.constraint(equalTo: topAnchor, constant: 1),
+            mainStack.bottomAnchor.constraint(equalTo: bottomAnchor, constant: -1),
             mainStack.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 4),
-            mainStack.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -12)
+            mainStack.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -10)
         ])
 
         setContentHuggingPriority(.required, for: .horizontal)
