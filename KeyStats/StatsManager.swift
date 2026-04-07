@@ -1318,7 +1318,7 @@ class StatsManager {
 
     /// 按次数排序的键位统计
     func keyPressBreakdownSorted() -> [(key: String, count: Int)] {
-        return normalizedKeyPressCounts(currentStats.keyPressCounts)
+        return keyBreakdownDisplayCounts(from: currentStats.keyPressCounts)
             .sorted {
                 if $0.value != $1.value {
                     return $0.value > $1.value

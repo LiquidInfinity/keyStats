@@ -16,6 +16,7 @@ class InputMonitor {
     private let layoutLock = NSLock()
     private var cachedLayoutData: CFData?
     private var inputSourceObserver: NSObjectProtocol?
+    private var modifierStandaloneTracker = ModifierStandaloneTracker()
     
     private init() {
         startInputSourceMonitoring()
@@ -112,6 +113,7 @@ class InputMonitor {
         eventTap = nil
         runLoopSource = nil
         isMonitoring = false
+        modifierStandaloneTracker.reset()
         
         print("输入监听已停止")
     }
@@ -142,6 +144,8 @@ class InputMonitor {
                 if statsManager.handleMouseDistanceCalibrationKeyPress() {
                     return
                 }
+                let keyCode = Int(event.getIntegerValueField(.keyboardEventKeycode))
+                modifierStandaloneTracker.consumePendingModifiers(forKeyDownWith: event.flags.rawValue, keyCode: keyCode)
                 let keyName = keyName(for: event)
                 statsManager.incrementKeyPresses(keyName: keyName, appIdentity: getAppIdentity(for: event))
             }
@@ -177,8 +181,10 @@ class InputMonitor {
             let keyCode = Int(event.getIntegerValueField(.keyboardEventKeycode))
             if keyCode == 57 { // CapsLock
                 statsManager.incrementKeyPresses(keyName: "CapsLock", appIdentity: getAppIdentity(for: event))
-            } else if let modifierKeyName = standaloneModifierHeatmapKeyName(for: keyCode),
-                      isStandaloneModifierPress(rawFlags: event.flags.rawValue, keyCode: keyCode) {
+            } else if let modifierKeyName = modifierStandaloneTracker.handleFlagsChanged(
+                keyCode: keyCode,
+                rawFlags: event.flags.rawValue
+            ) {
                 statsManager.incrementKeyPresses(keyName: modifierKeyName, appIdentity: getAppIdentity(for: event))
             }
 

@@ -22,6 +22,53 @@ func baseKeyComponent(_ keyName: String) -> String {
     return trimmed
 }
 
+private func canonicalBreakdownKeyPart(_ rawKeyPart: String) -> String {
+    let trimmed = rawKeyPart.trimmingCharacters(in: .whitespacesAndNewlines)
+    guard !trimmed.isEmpty else { return "" }
+
+    switch trimmed.uppercased() {
+    case "FN", "FUNCTION", "KEY63", "KEY179", "GLOBE", "🌐":
+        return "Fn"
+    default:
+        return trimmed
+    }
+}
+
+private func canonicalBreakdownKeyName(_ keyName: String) -> String {
+    let trimmed = keyName.trimmingCharacters(in: .whitespacesAndNewlines)
+    if trimmed == "+" {
+        return "+"
+    }
+
+    var raw = trimmed
+    var trailingPlus = false
+    if raw.hasSuffix("++") {
+        raw = String(raw.dropLast())
+        trailingPlus = true
+    }
+
+    var rawComponents = raw
+        .split(separator: "+")
+        .map { canonicalBreakdownKeyPart(String($0)) }
+        .filter { !$0.isEmpty }
+
+    if trailingPlus {
+        rawComponents.append("+")
+    }
+
+    guard !rawComponents.isEmpty else { return "" }
+
+    var orderedComponents: [String] = []
+    var seenComponents: Set<String> = []
+    for component in rawComponents {
+        if seenComponents.insert(component).inserted {
+            orderedComponents.append(component)
+        }
+    }
+
+    return orderedComponents.joined(separator: "+")
+}
+
 func standaloneModifierHeatmapKeyName(for keyCode: Int) -> String? {
     switch keyCode {
     case 55:
@@ -55,6 +102,15 @@ func isStandaloneModifierPress(rawFlags: UInt64, keyCode: Int) -> Bool {
         return rawFlags & leftOptionRawMask != 0
     case 61:
         return rawFlags & rightOptionRawMask != 0
+    default:
+        return false
+    }
+}
+
+func isStandaloneHeatmapModifierKey(_ keyName: String) -> Bool {
+    switch keyName {
+    case "LeftShift", "RightShift", "LeftOption", "RightOption", "LeftCmd", "RightCmd":
+        return true
     default:
         return false
     }
@@ -107,6 +163,32 @@ func keyboardEventModifierNames(rawFlags: UInt64, keyCode: Int) -> [String] {
     return names
 }
 
+struct ModifierStandaloneTracker {
+    private var pendingModifierKeys: Set<String> = []
+
+    mutating func handleFlagsChanged(keyCode: Int, rawFlags: UInt64) -> String? {
+        guard let modifierKey = standaloneModifierHeatmapKeyName(for: keyCode) else { return nil }
+
+        if isStandaloneModifierPress(rawFlags: rawFlags, keyCode: keyCode) {
+            pendingModifierKeys.insert(modifierKey)
+            return nil
+        }
+
+        guard pendingModifierKeys.remove(modifierKey) != nil else { return nil }
+        return modifierKey
+    }
+
+    mutating func consumePendingModifiers(forKeyDownWith rawFlags: UInt64, keyCode: Int) {
+        for modifierKey in keyboardEventModifierNames(rawFlags: rawFlags, keyCode: keyCode) where isStandaloneHeatmapModifierKey(modifierKey) {
+            pendingModifierKeys.remove(modifierKey)
+        }
+    }
+
+    mutating func reset() {
+        pendingModifierKeys.removeAll()
+    }
+}
+
 func keyboardHeatmapCounts(from keyPressCounts: [String: Int]) -> [String: Int] {
     var aggregated: [String: Int] = [:]
 
@@ -127,6 +209,68 @@ func keyboardHeatmapCounts(from keyPressCounts: [String: Int]) -> [String: Int] 
     }
 
     return aggregated
+}
+
+func keyBreakdownDisplayCounts(from keyPressCounts: [String: Int]) -> [String: Int] {
+    var aggregated: [String: Int] = [:]
+
+    for (rawKey, rawCount) in keyPressCounts {
+        let count = max(0, rawCount)
+        let normalizedKey = normalizedKeyBreakdownDisplayKey(rawKey)
+        guard !normalizedKey.isEmpty, count > 0 else { continue }
+        aggregated[normalizedKey, default: 0] += count
+    }
+
+    return aggregated
+}
+
+func normalizedKeyBreakdownDisplayKey(_ rawKey: String) -> String {
+    let canonicalKey = canonicalBreakdownKeyName(rawKey)
+    guard !canonicalKey.isEmpty else { return "" }
+    if canonicalKey == "+" {
+        return canonicalKey
+    }
+
+    var workingKey = canonicalKey
+    var trailingPlus = false
+    if workingKey.hasSuffix("++") {
+        workingKey = String(workingKey.dropLast())
+        trailingPlus = true
+    }
+
+    var parts = workingKey
+        .split(separator: "+")
+        .map { normalizedKeyBreakdownDisplayPart(String($0)) }
+        .filter { !$0.isEmpty }
+
+    if trailingPlus {
+        parts.append("+")
+    }
+
+    guard !parts.isEmpty else { return "" }
+
+    var collapsedParts: [String] = []
+    var seenParts: Set<String> = []
+    for part in parts {
+        if seenParts.insert(part).inserted {
+            collapsedParts.append(part)
+        }
+    }
+
+    return collapsedParts.joined(separator: "+")
+}
+
+func normalizedKeyBreakdownDisplayPart(_ rawPart: String) -> String {
+    switch rawPart {
+    case "LeftCmd", "RightCmd":
+        return "Cmd"
+    case "LeftOption", "RightOption":
+        return "Option"
+    case "LeftShift", "RightShift":
+        return "Shift"
+    default:
+        return rawPart
+    }
 }
 
 func normalizedKeyboardHeatmapDisplayKey(_ rawKey: String) -> String? {

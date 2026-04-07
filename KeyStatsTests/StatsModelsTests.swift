@@ -146,4 +146,64 @@ final class StatsModelsTests: XCTestCase {
         XCTAssertTrue(isStandaloneModifierPress(rawFlags: UInt64(NX_DEVICERSHIFTKEYMASK), keyCode: 60))
         XCTAssertFalse(isStandaloneModifierPress(rawFlags: UInt64(NX_DEVICELSHIFTKEYMASK), keyCode: 60))
     }
+
+    func testModifierStandaloneTrackerCommitsSingleModifierPressOnRelease() {
+        var tracker = ModifierStandaloneTracker()
+
+        XCTAssertNil(tracker.handleFlagsChanged(keyCode: 56, rawFlags: UInt64(NX_DEVICELSHIFTKEYMASK)))
+
+        let committed = tracker.handleFlagsChanged(keyCode: 56, rawFlags: 0)
+
+        XCTAssertEqual(committed, "LeftShift")
+    }
+
+    func testModifierStandaloneTrackerSuppressesStandaloneCountWhenModifierIsUsedInCombo() {
+        var tracker = ModifierStandaloneTracker()
+
+        XCTAssertNil(tracker.handleFlagsChanged(keyCode: 55, rawFlags: UInt64(NX_DEVICELCMDKEYMASK)))
+        tracker.consumePendingModifiers(
+            forKeyDownWith: UInt64(NX_DEVICELCMDKEYMASK) | CGEventFlags.maskCommand.rawValue,
+            keyCode: 8
+        )
+
+        let committed = tracker.handleFlagsChanged(keyCode: 55, rawFlags: 0)
+
+        XCTAssertNil(committed)
+    }
+
+    func testModifierStandaloneTrackerSuppressesAllPendingModifiersConsumedByCombo() {
+        var tracker = ModifierStandaloneTracker()
+
+        XCTAssertNil(tracker.handleFlagsChanged(keyCode: 55, rawFlags: UInt64(NX_DEVICELCMDKEYMASK)))
+        XCTAssertNil(tracker.handleFlagsChanged(keyCode: 60, rawFlags: UInt64(NX_DEVICELCMDKEYMASK | NX_DEVICERSHIFTKEYMASK)))
+        tracker.consumePendingModifiers(
+            forKeyDownWith: UInt64(NX_DEVICELCMDKEYMASK) |
+                UInt64(NX_DEVICERSHIFTKEYMASK) |
+                CGEventFlags.maskCommand.rawValue |
+                CGEventFlags.maskShift.rawValue,
+            keyCode: 7
+        )
+
+        XCTAssertNil(tracker.handleFlagsChanged(keyCode: 60, rawFlags: UInt64(NX_DEVICELCMDKEYMASK)))
+        XCTAssertNil(tracker.handleFlagsChanged(keyCode: 55, rawFlags: 0))
+    }
+
+    func testKeyBreakdownDisplayCountsAggregatesLeftAndRightModifierKeysForListDisplay() {
+        let counts = keyBreakdownDisplayCounts(from: [
+            "LeftCmd+C": 5,
+            "RightCmd+C": 2,
+            "LeftShift": 1,
+            "RightShift": 3,
+            "LeftOption+Delete": 4,
+            "RightOption+Delete": 1,
+            "A": 9
+        ])
+
+        XCTAssertEqual(counts["Cmd+C"], 7)
+        XCTAssertEqual(counts["Shift"], 4)
+        XCTAssertEqual(counts["Option+Delete"], 5)
+        XCTAssertEqual(counts["A"], 9)
+        XCTAssertNil(counts["LeftCmd+C"])
+        XCTAssertNil(counts["RightShift"])
+    }
 }
