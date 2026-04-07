@@ -177,6 +177,9 @@ class InputMonitor {
             let keyCode = Int(event.getIntegerValueField(.keyboardEventKeycode))
             if keyCode == 57 { // CapsLock
                 statsManager.incrementKeyPresses(keyName: "CapsLock", appIdentity: getAppIdentity(for: event))
+            } else if let modifierKeyName = standaloneModifierHeatmapKeyName(for: keyCode),
+                      isStandaloneModifierPress(rawFlags: event.flags.rawValue, keyCode: keyCode) {
+                statsManager.incrementKeyPresses(keyName: modifierKeyName, appIdentity: getAppIdentity(for: event))
             }
 
         default:
@@ -187,7 +190,7 @@ class InputMonitor {
     private func keyName(for event: CGEvent) -> String {
         let keyCode = Int(event.getIntegerValueField(.keyboardEventKeycode))
         let baseName = baseKeyName(for: keyCode, event: event)
-        let modifiers = modifierNames(for: event.flags, keyCode: keyCode)
+        let modifiers = keyboardEventModifierNames(rawFlags: event.flags.rawValue, keyCode: keyCode)
         if modifiers.isEmpty {
             return baseName
         }
@@ -220,22 +223,6 @@ class InputMonitor {
         default:
             return true
         }
-    }
-
-    private func modifierNames(for flags: CGEventFlags, keyCode: Int) -> [String] {
-        var names: [String] = []
-        if flags.contains(.maskCommand) { names.append("Cmd") }
-        if flags.contains(.maskShift) { names.append("Shift") }
-        if flags.contains(.maskAlternate) { names.append("Option") }
-        if flags.contains(.maskControl) { names.append("Ctrl") }
-        // 方向键(123-126)、Home(115)、End(119)、PageUp(116)、PageDown(121) 等导航键忽略 Fn 标志
-        // 因为在某些键盘上这些键会自动带上 Fn 标志
-        let isNavigationKey = (123...126).contains(keyCode) || [115, 116, 119, 121, 117].contains(keyCode)
-        let isFnKey = [63, 179].contains(keyCode)
-        if flags.contains(.maskSecondaryFn) && !isNavigationKey && !isFnKey {
-            names.append("Fn")
-        }
-        return names
     }
 
     private func baseKeyName(for keyCode: Int, event: CGEvent) -> String {

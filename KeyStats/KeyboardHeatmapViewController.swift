@@ -741,9 +741,10 @@ private final class KeyboardHeatmapView: NSView {
         let label: String
         let frameUnits: CGRect
         let symbolName: String?
+        let fallbackCountIDs: [String]
     }
 
-    static let supportedKeyIDs: Set<String> = Set(layout.map { $0.id })
+    static let supportedKeyIDs: Set<String> = Set(layout.flatMap { [$0.id] + $0.fallbackCountIDs })
     private static let numberKeyIDs: Set<String> = Set((0...9).map(String.init))
     private static let layoutContentInset: CGFloat = 8
     private static let maximumKeyboardScale: CGFloat = 58
@@ -759,14 +760,15 @@ private final class KeyboardHeatmapView: NSView {
 
         var items: [KeySpec] = []
 
-        func appendRow(y: CGFloat, startX: CGFloat, keys: [(id: String, label: String, width: CGFloat, symbolName: String?)]) {
+        func appendRow(y: CGFloat, startX: CGFloat, keys: [(id: String, label: String, width: CGFloat, symbolName: String?, fallbackCountIDs: [String])]) {
             var x = startX
             for key in keys {
                 items.append(KeySpec(
                     id: key.id,
                     label: key.label,
                     frameUnits: CGRect(x: x, y: y, width: key.width, height: 1.0),
-                    symbolName: key.symbolName
+                    symbolName: key.symbolName,
+                    fallbackCountIDs: key.fallbackCountIDs
                 ))
                 x += key.width + keyGap
             }
@@ -782,62 +784,64 @@ private final class KeyboardHeatmapView: NSView {
         let functionGapTotal = functionClusterGap + CGFloat(functionKeys.count - 1) * keyGap
         let functionKeyWidth = (keyboardRightEdge - escWidth - functionGapTotal) / CGFloat(functionKeys.count)
 
-        items.append(KeySpec(id: "Esc", label: "esc", frameUnits: CGRect(x: x, y: yFunction, width: escWidth, height: 1.0), symbolName: nil))
+        items.append(KeySpec(id: "Esc", label: "esc", frameUnits: CGRect(x: x, y: yFunction, width: escWidth, height: 1.0), symbolName: nil, fallbackCountIDs: []))
         x += escWidth + functionClusterGap
         for key in functionKeys {
             items.append(KeySpec(
                 id: key,
                 label: key,
                 frameUnits: CGRect(x: x, y: yFunction, width: functionKeyWidth, height: 1.0),
-                symbolName: nil
+                symbolName: nil,
+                fallbackCountIDs: []
             ))
             x += functionKeyWidth + keyGap
         }
         let y1 = rowStep
         appendRow(y: y1, startX: 0, keys: [
-            ("`", "~\n`", 1.0, nil), ("1", "!\n1", 1.0, nil), ("2", "@\n2", 1.0, nil), ("3", "#\n3", 1.0, nil), ("4", "$\n4", 1.0, nil),
-            ("5", "%\n5", 1.0, nil), ("6", "^\n6", 1.0, nil), ("7", "&\n7", 1.0, nil), ("8", "*\n8", 1.0, nil), ("9", "(\n9", 1.0, nil),
-            ("0", ")\n0", 1.0, nil), ("-", "_\n-", 1.0, nil), ("=", "+\n=", 1.0, nil), ("Delete", "delete", deleteWidth, nil)
+            ("`", "~\n`", 1.0, nil, []), ("1", "!\n1", 1.0, nil, []), ("2", "@\n2", 1.0, nil, []), ("3", "#\n3", 1.0, nil, []), ("4", "$\n4", 1.0, nil, []),
+            ("5", "%\n5", 1.0, nil, []), ("6", "^\n6", 1.0, nil, []), ("7", "&\n7", 1.0, nil, []), ("8", "*\n8", 1.0, nil, []), ("9", "(\n9", 1.0, nil, []),
+            ("0", ")\n0", 1.0, nil, []), ("-", "_\n-", 1.0, nil, []), ("=", "+\n=", 1.0, nil, []), ("Delete", "delete", deleteWidth, nil, [])
         ])
 
         let y2 = y1 + rowStep
         appendRow(y: y2, startX: 0, keys: [
-            ("Tab", "tab", 1.45, nil), ("Q", "Q", 1.0, nil), ("W", "W", 1.0, nil), ("E", "E", 1.0, nil), ("R", "R", 1.0, nil),
-            ("T", "T", 1.0, nil), ("Y", "Y", 1.0, nil), ("U", "U", 1.0, nil), ("I", "I", 1.0, nil), ("O", "O", 1.0, nil),
-            ("P", "P", 1.0, nil), ("[", "{\n[", 1.0, nil), ("]", "}\n]", 1.0, nil), ("\\", "|\n\\", backslashWidth, nil)
+            ("Tab", "tab", 1.45, nil, []), ("Q", "Q", 1.0, nil, []), ("W", "W", 1.0, nil, []), ("E", "E", 1.0, nil, []), ("R", "R", 1.0, nil, []),
+            ("T", "T", 1.0, nil, []), ("Y", "Y", 1.0, nil, []), ("U", "U", 1.0, nil, []), ("I", "I", 1.0, nil, []), ("O", "O", 1.0, nil, []),
+            ("P", "P", 1.0, nil, []), ("[", "{\n[", 1.0, nil, []), ("]", "}\n]", 1.0, nil, []), ("\\", "|\n\\", backslashWidth, nil, [])
         ])
 
         let y3 = y2 + rowStep
         appendRow(y: y3, startX: 0, keys: [
-            ("CapsLock", "caps lock", 1.8, nil), ("A", "A", 1.0, nil), ("S", "S", 1.0, nil), ("D", "D", 1.0, nil), ("F", "F", 1.0, nil),
-            ("G", "G", 1.0, nil), ("H", "H", 1.0, nil), ("J", "J", 1.0, nil), ("K", "K", 1.0, nil), ("L", "L", 1.0, nil),
-            (";", ":\n;", 1.0, nil), ("'", "\"\n'", 1.0, nil), ("Return", "return", 2.58, nil)
+            ("CapsLock", "caps lock", 1.8, nil, []), ("A", "A", 1.0, nil, []), ("S", "S", 1.0, nil, []), ("D", "D", 1.0, nil, []), ("F", "F", 1.0, nil, []),
+            ("G", "G", 1.0, nil, []), ("H", "H", 1.0, nil, []), ("J", "J", 1.0, nil, []), ("K", "K", 1.0, nil, []), ("L", "L", 1.0, nil, []),
+            (";", ":\n;", 1.0, nil, []), ("'", "\"\n'", 1.0, nil, []), ("Return", "return", 2.58, nil, [])
         ])
 
         let y4 = y3 + rowStep
         appendRow(y: y4, startX: 0, keys: [
-            ("Shift", "", 2.45, "shift"), ("Z", "Z", 1.0, nil), ("X", "X", 1.0, nil), ("C", "C", 1.0, nil), ("V", "V", 1.0, nil),
-            ("B", "B", 1.0, nil), ("N", "N", 1.0, nil), ("M", "M", 1.0, nil), (",", "<\n,", 1.0, nil), (".", ">\n.", 1.0, nil),
-            ("/", "?\n/", 1.0, nil), ("Shift", "", rightShiftWidth, "shift")
+            ("LeftShift", "", 2.45, "shift", ["Shift"]), ("Z", "Z", 1.0, nil, []), ("X", "X", 1.0, nil, []), ("C", "C", 1.0, nil, []), ("V", "V", 1.0, nil, []),
+            ("B", "B", 1.0, nil, []), ("N", "N", 1.0, nil, []), ("M", "M", 1.0, nil, []), (",", "<\n,", 1.0, nil, []), (".", ">\n.", 1.0, nil, []),
+            ("/", "?\n/", 1.0, nil, []), ("RightShift", "", rightShiftWidth, "shift", [])
         ])
 
         let y5 = y4 + rowStep
         var bottomX: CGFloat = 0
-        let bottomKeys: [(id: String, label: String, width: CGFloat, symbolName: String?)] = [
-            ("Fn", "", 1.0, "globe"),
-            ("Ctrl", "", 1.1, "control"),
-            ("Option", "", 1.1, "option"),
-            ("Cmd", "", 1.3, "command"),
-            ("Space", "", 6.0, nil),
-            ("Cmd", "", 1.3, "command"),
-            ("Option", "", 1.1, "option")
+        let bottomKeys: [(id: String, label: String, width: CGFloat, symbolName: String?, fallbackCountIDs: [String])] = [
+            ("Fn", "", 1.0, "globe", []),
+            ("Ctrl", "", 1.1, "control", []),
+            ("LeftOption", "", 1.1, "option", ["Option"]),
+            ("LeftCmd", "", 1.3, "command", ["Cmd"]),
+            ("Space", "", 6.0, nil, []),
+            ("RightCmd", "", 1.3, "command", []),
+            ("RightOption", "", 1.1, "option", [])
         ]
         for key in bottomKeys {
             items.append(KeySpec(
                 id: key.id,
                 label: key.label,
                 frameUnits: CGRect(x: bottomX, y: y5, width: key.width, height: 1.0),
-                symbolName: key.symbolName
+                symbolName: key.symbolName,
+                fallbackCountIDs: key.fallbackCountIDs
             ))
             bottomX += key.width + keyGap
         }
@@ -848,10 +852,10 @@ private final class KeyboardHeatmapView: NSView {
         let arrowStartX = keyboardRightEdge - arrowClusterWidth
         let verticalGap: CGFloat = 0.04
         let halfArrowHeight = (1.0 - verticalGap) / 2.0
-        items.append(KeySpec(id: "Left", label: "◀", frameUnits: CGRect(x: arrowStartX, y: y5, width: arrowWidth, height: 1.0), symbolName: nil))
-        items.append(KeySpec(id: "Up", label: "▲", frameUnits: CGRect(x: arrowStartX + arrowStep, y: y5, width: arrowWidth, height: halfArrowHeight), symbolName: nil))
-        items.append(KeySpec(id: "Down", label: "▼", frameUnits: CGRect(x: arrowStartX + arrowStep, y: y5 + halfArrowHeight + verticalGap, width: arrowWidth, height: halfArrowHeight), symbolName: nil))
-        items.append(KeySpec(id: "Right", label: "▶", frameUnits: CGRect(x: arrowStartX + arrowStep * 2, y: y5, width: arrowWidth, height: 1.0), symbolName: nil))
+        items.append(KeySpec(id: "Left", label: "◀", frameUnits: CGRect(x: arrowStartX, y: y5, width: arrowWidth, height: 1.0), symbolName: nil, fallbackCountIDs: []))
+        items.append(KeySpec(id: "Up", label: "▲", frameUnits: CGRect(x: arrowStartX + arrowStep, y: y5, width: arrowWidth, height: halfArrowHeight), symbolName: nil, fallbackCountIDs: []))
+        items.append(KeySpec(id: "Down", label: "▼", frameUnits: CGRect(x: arrowStartX + arrowStep, y: y5 + halfArrowHeight + verticalGap, width: arrowWidth, height: halfArrowHeight), symbolName: nil, fallbackCountIDs: []))
+        items.append(KeySpec(id: "Right", label: "▶", frameUnits: CGRect(x: arrowStartX + arrowStep * 2, y: y5, width: arrowWidth, height: 1.0), symbolName: nil, fallbackCountIDs: []))
 
         return items
     }()
@@ -885,7 +889,7 @@ private final class KeyboardHeatmapView: NSView {
         for key in Self.layout {
             let frame = keyFrame(for: key, metrics: metrics)
 
-            let count = keyCounts[key.id, default: 0]
+            let count = count(for: key)
             let fillColor = color(for: count, isDarkMode: isDarkMode)
 
             let keyPath = NSBezierPath(roundedRect: frame, xRadius: max(4, metrics.scale * 0.14), yRadius: max(4, metrics.scale * 0.14))
@@ -972,7 +976,7 @@ private final class KeyboardHeatmapView: NSView {
 
     private func drawSymbolLegend(for key: KeySpec, symbolName: String, in frame: CGRect, scale: CGFloat, textColor: NSColor) {
         let symbolPointSize = max(10, min(15, scale * 0.30))
-        let symbolWeight: NSFont.Weight = key.id == "Shift" ? .semibold : .medium
+        let symbolWeight: NSFont.Weight = key.id.contains("Shift") ? .semibold : .medium
         let horizontalInset = max(4, scale * 0.14)
         let bottomInset = max(3, scale * 0.12)
         let symbolRect = CGRect(
@@ -1046,6 +1050,20 @@ private final class KeyboardHeatmapView: NSView {
 
         upper.draw(at: upperPoint, withAttributes: upperAttributes)
         lower.draw(at: lowerPoint, withAttributes: lowerAttributes)
+    }
+
+    private func count(for key: KeySpec) -> Int {
+        if let direct = keyCounts[key.id] {
+            return direct
+        }
+
+        for fallbackID in key.fallbackCountIDs {
+            if let fallbackCount = keyCounts[fallbackID] {
+                return fallbackCount
+            }
+        }
+
+        return 0
     }
 
     private func drawCountBadge(for count: Int, in frame: CGRect, scale: CGFloat, isDarkMode: Bool) {

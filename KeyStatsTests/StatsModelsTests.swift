@@ -1,4 +1,6 @@
 import XCTest
+import CoreGraphics
+import IOKit.hidsystem
 @testable import KeyStatsCore
 
 final class StatsModelsTests: XCTestCase {
@@ -96,5 +98,52 @@ final class StatsModelsTests: XCTestCase {
         XCTAssertEqual(stats.totalClicks, 4)
         XCTAssertEqual(stats.correctionRate, 0.25, accuracy: 0.0001)
         XCTAssertEqual(stats.inputRatio, 3.0, accuracy: 0.0001)
+    }
+
+    func testKeyboardHeatmapAggregationSeparatesLeftAndRightModifierKeys() {
+        let aggregated = keyboardHeatmapCounts(from: [
+            "LeftShift+A": 3,
+            "RightShift+A": 2,
+            "LeftOption+B": 4,
+            "RightOption+B": 1,
+            "LeftCmd+C": 5,
+            "RightCmd+C": 2,
+            "Shift": 7
+        ])
+
+        XCTAssertEqual(aggregated["LeftShift"], 3)
+        XCTAssertEqual(aggregated["RightShift"], 2)
+        XCTAssertEqual(aggregated["LeftOption"], 4)
+        XCTAssertEqual(aggregated["RightOption"], 1)
+        XCTAssertEqual(aggregated["LeftCmd"], 5)
+        XCTAssertEqual(aggregated["RightCmd"], 2)
+        XCTAssertEqual(aggregated["Shift"], 7)
+        XCTAssertEqual(aggregated["A"], 5)
+        XCTAssertEqual(aggregated["B"], 5)
+        XCTAssertEqual(aggregated["C"], 7)
+    }
+
+    func testKeyboardEventModifierNamesUsesSideSpecificFlagsForShiftOptionAndCommand() {
+        let rawFlags = CGEventFlags.maskShift.rawValue |
+            CGEventFlags.maskAlternate.rawValue |
+            CGEventFlags.maskCommand.rawValue |
+            UInt64(NX_DEVICERSHIFTKEYMASK) |
+            UInt64(NX_DEVICELALTKEYMASK) |
+            UInt64(NX_DEVICERCMDKEYMASK)
+
+        let names = keyboardEventModifierNames(rawFlags: rawFlags, keyCode: 0)
+
+        XCTAssertEqual(names, ["RightCmd", "RightShift", "LeftOption"])
+    }
+
+    func testStandaloneModifierHelpersRecognizeLeftAndRightModifierKeys() {
+        XCTAssertEqual(standaloneModifierHeatmapKeyName(for: 56), "LeftShift")
+        XCTAssertEqual(standaloneModifierHeatmapKeyName(for: 60), "RightShift")
+        XCTAssertEqual(standaloneModifierHeatmapKeyName(for: 58), "LeftOption")
+        XCTAssertEqual(standaloneModifierHeatmapKeyName(for: 61), "RightOption")
+        XCTAssertEqual(standaloneModifierHeatmapKeyName(for: 55), "LeftCmd")
+        XCTAssertEqual(standaloneModifierHeatmapKeyName(for: 54), "RightCmd")
+        XCTAssertTrue(isStandaloneModifierPress(rawFlags: UInt64(NX_DEVICERSHIFTKEYMASK), keyCode: 60))
+        XCTAssertFalse(isStandaloneModifierPress(rawFlags: UInt64(NX_DEVICELSHIFTKEYMASK), keyCode: 60))
     }
 }

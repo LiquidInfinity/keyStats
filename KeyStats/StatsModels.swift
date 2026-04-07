@@ -1,6 +1,17 @@
 import Foundation
+import CoreGraphics
+import IOKit.hidsystem
 
 let baseMetersPerPixel: Double = 0.000264583
+
+private let leftControlRawMask = UInt64(NX_DEVICELCTLKEYMASK)
+private let rightControlRawMask = UInt64(NX_DEVICERCTLKEYMASK)
+private let leftShiftRawMask = UInt64(NX_DEVICELSHIFTKEYMASK)
+private let rightShiftRawMask = UInt64(NX_DEVICERSHIFTKEYMASK)
+private let leftCommandRawMask = UInt64(NX_DEVICELCMDKEYMASK)
+private let rightCommandRawMask = UInt64(NX_DEVICERCMDKEYMASK)
+private let leftOptionRawMask = UInt64(NX_DEVICELALTKEYMASK)
+private let rightOptionRawMask = UInt64(NX_DEVICERALTKEYMASK)
 
 func baseKeyComponent(_ keyName: String) -> String {
     let trimmed = keyName.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -9,6 +20,198 @@ func baseKeyComponent(_ keyName: String) -> String {
         return String(last).trimmingCharacters(in: .whitespacesAndNewlines)
     }
     return trimmed
+}
+
+func standaloneModifierHeatmapKeyName(for keyCode: Int) -> String? {
+    switch keyCode {
+    case 55:
+        return "LeftCmd"
+    case 54:
+        return "RightCmd"
+    case 56:
+        return "LeftShift"
+    case 60:
+        return "RightShift"
+    case 58:
+        return "LeftOption"
+    case 61:
+        return "RightOption"
+    default:
+        return nil
+    }
+}
+
+func isStandaloneModifierPress(rawFlags: UInt64, keyCode: Int) -> Bool {
+    switch keyCode {
+    case 55:
+        return rawFlags & leftCommandRawMask != 0
+    case 54:
+        return rawFlags & rightCommandRawMask != 0
+    case 56:
+        return rawFlags & leftShiftRawMask != 0
+    case 60:
+        return rawFlags & rightShiftRawMask != 0
+    case 58:
+        return rawFlags & leftOptionRawMask != 0
+    case 61:
+        return rawFlags & rightOptionRawMask != 0
+    default:
+        return false
+    }
+}
+
+func keyboardEventModifierNames(rawFlags: UInt64, keyCode: Int) -> [String] {
+    let flags = CGEventFlags(rawValue: rawFlags)
+    var names: [String] = []
+
+    if rawFlags & leftCommandRawMask != 0 {
+        names.append("LeftCmd")
+    }
+    if rawFlags & rightCommandRawMask != 0 {
+        names.append("RightCmd")
+    }
+    if !names.contains("LeftCmd") && !names.contains("RightCmd") && flags.contains(.maskCommand) {
+        names.append("Cmd")
+    }
+
+    if rawFlags & leftShiftRawMask != 0 {
+        names.append("LeftShift")
+    }
+    if rawFlags & rightShiftRawMask != 0 {
+        names.append("RightShift")
+    }
+    if !names.contains("LeftShift") && !names.contains("RightShift") && flags.contains(.maskShift) {
+        names.append("Shift")
+    }
+
+    if rawFlags & leftOptionRawMask != 0 {
+        names.append("LeftOption")
+    }
+    if rawFlags & rightOptionRawMask != 0 {
+        names.append("RightOption")
+    }
+    if !names.contains("LeftOption") && !names.contains("RightOption") && flags.contains(.maskAlternate) {
+        names.append("Option")
+    }
+
+    if rawFlags & leftControlRawMask != 0 || rawFlags & rightControlRawMask != 0 || flags.contains(.maskControl) {
+        names.append("Ctrl")
+    }
+
+    let isNavigationKey = (123...126).contains(keyCode) || [115, 116, 119, 121, 117].contains(keyCode)
+    let isFnKey = [63, 179].contains(keyCode)
+    if flags.contains(.maskSecondaryFn) && !isNavigationKey && !isFnKey {
+        names.append("Fn")
+    }
+
+    return names
+}
+
+func keyboardHeatmapCounts(from keyPressCounts: [String: Int]) -> [String: Int] {
+    var aggregated: [String: Int] = [:]
+
+    for (rawKey, rawCount) in keyPressCounts {
+        let count = max(0, rawCount)
+        guard count > 0 else { continue }
+
+        let components = rawKey
+            .split(separator: "+")
+            .map { String($0).trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+
+        let sourceKeys = components.isEmpty ? [rawKey] : components
+        for sourceKey in sourceKeys {
+            guard let normalizedKey = normalizedKeyboardHeatmapDisplayKey(sourceKey) else { continue }
+            aggregated[normalizedKey, default: 0] += count
+        }
+    }
+
+    return aggregated
+}
+
+func normalizedKeyboardHeatmapDisplayKey(_ rawKey: String) -> String? {
+    let trimmed = rawKey.trimmingCharacters(in: .whitespacesAndNewlines)
+    guard !trimmed.isEmpty else { return nil }
+
+    let collapsed = trimmed
+        .replacingOccurrences(of: " ", with: "")
+        .replacingOccurrences(of: "-", with: "")
+        .uppercased()
+
+    if collapsed.count == 1 {
+        return collapsed
+    }
+
+    if collapsed.hasPrefix("F"), Int(collapsed.dropFirst()) != nil {
+        return collapsed
+    }
+
+    switch collapsed {
+    case "LEFTCMD", "LEFTCOMMAND":
+        return "LeftCmd"
+    case "RIGHTCMD", "RIGHTCOMMAND":
+        return "RightCmd"
+    case "CMD", "COMMAND", "⌘":
+        return "Cmd"
+    case "LEFTOPTION", "LEFTOPT", "LEFTALT":
+        return "LeftOption"
+    case "RIGHTOPTION", "RIGHTOPT", "RIGHTALT":
+        return "RightOption"
+    case "OPTION", "OPT", "ALT", "⌥":
+        return "Option"
+    case "LEFTSHIFT":
+        return "LeftShift"
+    case "RIGHTSHIFT":
+        return "RightShift"
+    case "SHIFT", "⇧":
+        return "Shift"
+    case "CTRL", "CONTROL", "⌃":
+        return "Ctrl"
+    case "FN", "FUNCTION", "🌐":
+        return "Fn"
+    case "SPACE", "SPACEBAR":
+        return "Space"
+    case "ESCAPE", "ESC", "⎋":
+        return "Esc"
+    case "RETURN", "↩":
+        return "Return"
+    case "ENTER", "⌅":
+        return "Enter"
+    case "BACKSPACE":
+        return "Delete"
+    case "DELETE", "⌫":
+        return "Delete"
+    case "FORWARDDELETE", "DEL", "⌦":
+        return "ForwardDelete"
+    case "INSERT", "INS", "HELP":
+        return "Insert"
+    case "PAGEUP":
+        return "PageUp"
+    case "PAGEDOWN":
+        return "PageDown"
+    case "HOME":
+        return "Home"
+    case "END":
+        return "End"
+    case "PRINTSCREEN", "PRTSC", "PRTSCN", "SNAPSHOT":
+        return "PrintScreen"
+    case "SCROLLLOCK", "SCROLL":
+        return "ScrollLock"
+    case "PAUSE", "BREAK":
+        return "Pause"
+    case "LEFT", "ARROWLEFT", "LEFTARROW":
+        return "Left"
+    case "RIGHT", "ARROWRIGHT", "RIGHTARROW":
+        return "Right"
+    case "UP", "ARROWUP", "UPARROW":
+        return "Up"
+    case "DOWN", "ARROWDOWN", "DOWNARROW":
+        return "Down"
+    case "CAPSLOCK", "CAPS":
+        return "CapsLock"
+    default:
+        return trimmed
+    }
 }
 
 /// 统计数据结构

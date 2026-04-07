@@ -1392,101 +1392,12 @@ extension StatsManager {
         assert(Thread.isMainThread)
         let normalizedDate = Calendar.current.startOfDay(for: date)
         let daily = dailyStats(for: normalizedDate)
-        let aggregated = aggregateKeyboardHeatmapCounts(from: daily.keyPressCounts)
+        let aggregated = keyboardHeatmapCounts(from: daily.keyPressCounts)
         return KeyboardHeatmapDay(
             date: normalizedDate,
             totalKeyPresses: max(0, daily.keyPresses),
             keyCounts: aggregated
         )
-    }
-
-    private func aggregateKeyboardHeatmapCounts(from keyPressCounts: [String: Int]) -> [String: Int] {
-        var aggregated: [String: Int] = [:]
-
-        for (rawKey, rawCount) in keyPressCounts {
-            let count = max(0, rawCount)
-            guard count > 0 else { continue }
-
-            let components = rawKey
-                .split(separator: "+")
-                .map { String($0).trimmingCharacters(in: .whitespacesAndNewlines) }
-                .filter { !$0.isEmpty }
-
-            let sourceKeys = components.isEmpty ? [rawKey] : components
-            for sourceKey in sourceKeys {
-                guard let normalizedKey = normalizedKeyboardHeatmapKey(sourceKey) else { continue }
-                aggregated[normalizedKey] = safeAdd(aggregated[normalizedKey] ?? 0, count)
-            }
-        }
-
-        return aggregated
-    }
-
-    private func normalizedKeyboardHeatmapKey(_ rawKey: String) -> String? {
-        let trimmed = rawKey.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty else { return nil }
-
-        let upper = trimmed.uppercased()
-        if upper.count == 1 {
-            return upper
-        }
-
-        if upper.hasPrefix("F"), Int(upper.dropFirst()) != nil {
-            return upper
-        }
-
-        switch upper {
-        case "CMD", "COMMAND", "⌘":
-            return "Cmd"
-        case "CTRL", "CONTROL", "⌃":
-            return "Ctrl"
-        case "OPTION", "OPT", "ALT", "⌥":
-            return "Option"
-        case "SHIFT", "⇧":
-            return "Shift"
-        case "FN", "FUNCTION", "🌐":
-            return "Fn"
-        case "SPACE", "SPACEBAR":
-            return "Space"
-        case "ESCAPE", "ESC", "⎋":
-            return "Esc"
-        case "RETURN", "↩":
-            return "Return"
-        case "ENTER", "⌅":
-            return "Enter"
-        case "BACKSPACE":
-            return "Delete"
-        case "DELETE", "⌫":
-            return "Delete"
-        case "FORWARDDELETE", "DEL", "⌦":
-            return "ForwardDelete"
-        case "INSERT", "INS", "HELP":
-            return "Insert"
-        case "PAGEUP":
-            return "PageUp"
-        case "PAGEDOWN":
-            return "PageDown"
-        case "HOME":
-            return "Home"
-        case "END":
-            return "End"
-        case "PRINTSCREEN", "PRTSC", "PRTSCN", "SNAPSHOT":
-            return "PrintScreen"
-        case "SCROLLLOCK", "SCROLL":
-            return "ScrollLock"
-        case "PAUSE", "BREAK":
-            return "Pause"
-        case "LEFT", "ARROWLEFT", "LEFTARROW":
-            return "Left"
-        case "RIGHT", "ARROWRIGHT", "RIGHTARROW":
-            return "Right"
-        case "UP", "ARROWUP", "UPARROW":
-            return "Up"
-        case "DOWN", "ARROWDOWN", "DOWNARROW":
-            return "Down"
-        default:
-            return trimmed
-        }
     }
     
     func historySeries(range: HistoryRange, metric: HistoryMetric) -> [(date: Date, value: Double)] {

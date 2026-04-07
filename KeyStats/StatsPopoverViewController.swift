@@ -1377,17 +1377,36 @@ class KeyCountRowView: NSView {
     }
 
     private static func keyParts(from key: String) -> [String] {
-        guard key.contains("+") else { return [key] }
+        guard key.contains("+") else { return [displayKeyPart(key)] }
         if key.hasSuffix("+") {
             var trimmed = String(key.dropLast())
             if trimmed.hasSuffix("+") {
                 trimmed = String(trimmed.dropLast())
             }
-            var parts = trimmed.split(separator: "+").map { String($0) }
+            var parts = trimmed.split(separator: "+").map { displayKeyPart(String($0)) }
             parts.append("+")
-            return parts.isEmpty ? [key] : parts
+            return parts.isEmpty ? [displayKeyPart(key)] : parts
         }
-        return key.split(separator: "+").map { String($0) }
+        return key.split(separator: "+").map { displayKeyPart(String($0)) }
+    }
+
+    private static func displayKeyPart(_ keyPart: String) -> String {
+        switch keyPart {
+        case "LeftShift":
+            return "L Shift"
+        case "RightShift":
+            return "R Shift"
+        case "LeftOption":
+            return "L Option"
+        case "RightOption":
+            return "R Option"
+        case "LeftCmd":
+            return "L Cmd"
+        case "RightCmd":
+            return "R Cmd"
+        default:
+            return keyPart
+        }
     }
 
     private static func tintImage(_ image: NSImage, with color: NSColor) -> NSImage? {
