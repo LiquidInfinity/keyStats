@@ -152,7 +152,7 @@ class StatsPopoverViewController: NSViewController {
         titleLabel.translatesAutoresizingMaskIntoConstraints = false
         containerView.addSubview(titleLabel)
 
-        // KPS 徽章（放在标题右侧，双行显示峰值 KPS/CPS）
+        // KPS 徽章（放在标题右侧，单行显示 KPS|CPS）
         kpsBadge = KPSBadgeView()
         kpsBadge.onTap = { [weak self] in self?.toggleKPSPopover() }
         kpsBadge.translatesAutoresizingMaskIntoConstraints = false
@@ -2025,18 +2025,16 @@ class StatsChartView: NSView {
 
 // MARK: - KPS 徽章视图
 
-/// 左侧大闪电图标占两行，右侧两行数字（峰值 KPS / CPS）
+/// 单行 KPS/CPS 胶囊入口，展示为 `⚡️ 25|7`
 class KPSBadgeView: NSView {
     var onTap: (() -> Void)?
 
     private let iconLabel: NSTextField
-    private let kpsLabel: NSTextField
-    private let cpsLabel: NSTextField
+    private let rateLabel: NSTextField
 
     override init(frame frameRect: NSRect) {
         iconLabel = NSTextField(labelWithString: "⚡️")
-        kpsLabel = NSTextField(labelWithString: "0")
-        cpsLabel = NSTextField(labelWithString: "0")
+        rateLabel = NSTextField(labelWithString: "0|0")
         super.init(frame: frameRect)
         setupUI()
     }
@@ -2047,41 +2045,31 @@ class KPSBadgeView: NSView {
 
     private func setupUI() {
         wantsLayer = true
-        layer?.backgroundColor = NSColor.controlBackgroundColor.withAlphaComponent(0.5).cgColor
+        updateAppearance()
         toolTip = "KPS / CPS"
 
-        iconLabel.font = NSFont.systemFont(ofSize: 10)
+        iconLabel.font = NSFont.systemFont(ofSize: 10, weight: .regular)
+        iconLabel.textColor = NSColor.systemOrange.withAlphaComponent(0.9)
         iconLabel.alignment = .center
         iconLabel.translatesAutoresizingMaskIntoConstraints = false
         iconLabel.setContentHuggingPriority(.required, for: .horizontal)
 
-        let numFont = NSFont.monospacedDigitSystemFont(ofSize: 9, weight: .medium)
-        kpsLabel.font = numFont
-        kpsLabel.textColor = .secondaryLabelColor
-        kpsLabel.translatesAutoresizingMaskIntoConstraints = false
+        rateLabel.font = NSFont.monospacedDigitSystemFont(ofSize: 10, weight: .medium)
+        rateLabel.textColor = .secondaryLabelColor
+        rateLabel.translatesAutoresizingMaskIntoConstraints = false
 
-        cpsLabel.font = numFont
-        cpsLabel.textColor = .secondaryLabelColor
-        cpsLabel.translatesAutoresizingMaskIntoConstraints = false
-
-        let rightStack = NSStackView(views: [kpsLabel, cpsLabel])
-        rightStack.orientation = .vertical
-        rightStack.alignment = .leading
-        rightStack.spacing = 0
-        rightStack.translatesAutoresizingMaskIntoConstraints = false
-
-        let mainStack = NSStackView(views: [iconLabel, rightStack])
+        let mainStack = NSStackView(views: [iconLabel, rateLabel])
         mainStack.orientation = .horizontal
         mainStack.alignment = .centerY
-        mainStack.spacing = 1
+        mainStack.spacing = 3
         mainStack.translatesAutoresizingMaskIntoConstraints = false
         addSubview(mainStack)
 
         NSLayoutConstraint.activate([
-            mainStack.topAnchor.constraint(equalTo: topAnchor, constant: 1),
-            mainStack.bottomAnchor.constraint(equalTo: bottomAnchor, constant: -1),
-            mainStack.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 4),
-            mainStack.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -10)
+            mainStack.topAnchor.constraint(equalTo: topAnchor, constant: 3),
+            mainStack.bottomAnchor.constraint(equalTo: bottomAnchor, constant: -3),
+            mainStack.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 5),
+            mainStack.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -9)
         ])
 
         setContentHuggingPriority(.required, for: .horizontal)
@@ -2093,9 +2081,47 @@ class KPSBadgeView: NSView {
         layer?.cornerRadius = bounds.height / 2
     }
 
+    override func viewDidChangeEffectiveAppearance() {
+        super.viewDidChangeEffectiveAppearance()
+        updateAppearance()
+    }
+
+    private func updateAppearance() {
+        layer?.backgroundColor = resolvedCGColor(NSColor.controlBackgroundColor, alpha: 0.7, for: self)
+    }
+
     func update(peakKPS: Int, peakCPS: Int) {
-        kpsLabel.stringValue = "\(peakKPS)"
-        cpsLabel.stringValue = "\(peakCPS)"
+        let textColor = NSColor.secondaryLabelColor
+        let separatorColor = NSColor.tertiaryLabelColor.withAlphaComponent(0.75)
+        let font = rateLabel.font ?? NSFont.monospacedDigitSystemFont(ofSize: 10, weight: .semibold)
+
+        let attributed = NSMutableAttributedString(
+            string: "\(peakKPS)",
+            attributes: [
+                .font: font,
+                .foregroundColor: textColor
+            ]
+        )
+        attributed.append(
+            NSAttributedString(
+                string: " · ",
+                attributes: [
+                    .font: font,
+                    .foregroundColor: separatorColor
+                ]
+            )
+        )
+        attributed.append(
+            NSAttributedString(
+                string: "\(peakCPS)",
+                attributes: [
+                    .font: font,
+                    .foregroundColor: textColor
+                ]
+            )
+        )
+
+        rateLabel.attributedStringValue = attributed
     }
 
     override func mouseDown(with event: NSEvent) {
