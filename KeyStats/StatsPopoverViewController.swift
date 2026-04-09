@@ -2061,15 +2061,15 @@ class KPSBadgeView: NSView {
         let mainStack = NSStackView(views: [iconLabel, rateLabel])
         mainStack.orientation = .horizontal
         mainStack.alignment = .centerY
-        mainStack.spacing = 3
+        mainStack.spacing = 2
         mainStack.translatesAutoresizingMaskIntoConstraints = false
         addSubview(mainStack)
 
         NSLayoutConstraint.activate([
             mainStack.topAnchor.constraint(equalTo: topAnchor, constant: 3),
             mainStack.bottomAnchor.constraint(equalTo: bottomAnchor, constant: -3),
-            mainStack.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 5),
-            mainStack.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -9)
+            mainStack.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 4),
+            mainStack.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -7)
         ])
 
         setContentHuggingPriority(.required, for: .horizontal)
@@ -2092,7 +2092,7 @@ class KPSBadgeView: NSView {
 
     func update(peakKPS: Int, peakCPS: Int) {
         let textColor = NSColor.secondaryLabelColor
-        let separatorColor = NSColor.tertiaryLabelColor.withAlphaComponent(0.75)
+        let separatorColor = NSColor.tertiaryLabelColor.withAlphaComponent(0.5)
         let font = rateLabel.font ?? NSFont.monospacedDigitSystemFont(ofSize: 10, weight: .semibold)
 
         let attributed = NSMutableAttributedString(
