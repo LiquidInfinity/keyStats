@@ -15,6 +15,7 @@ fi
 
 TAG="v$VERSION"
 PBXPROJ="KeyStats.xcodeproj/project.pbxproj"
+WINDOWS_CSPROJ="KeyStats.Windows/KeyStats/KeyStats.csproj"
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PROJECT_DIR="$(dirname "$SCRIPT_DIR")"
@@ -30,10 +31,11 @@ fi
 
 new_build=$((current_build + 1))
 perl -0pi -e "s/CURRENT_PROJECT_VERSION = [0-9]+;/CURRENT_PROJECT_VERSION = ${new_build};/g; s/MARKETING_VERSION = [^;]+;/MARKETING_VERSION = ${VERSION};/g" "$PBXPROJ"
-echo "Set MARKETING_VERSION=$VERSION, CURRENT_PROJECT_VERSION=$new_build"
+perl -0pi -e "s#<Version>[^<]+</Version>#<Version>${VERSION}</Version>#g" "$WINDOWS_CSPROJ"
+echo "Set MARKETING_VERSION=$VERSION, CURRENT_PROJECT_VERSION=$new_build, Windows Version=$VERSION"
 
 echo "Committing version bump..."
-git add "$PBXPROJ"
+git add "$PBXPROJ" "$WINDOWS_CSPROJ"
 git commit -m "chore: bump version to $VERSION"
 
 echo "Tagging and pushing..."

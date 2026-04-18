@@ -98,5 +98,10 @@
             </Grid>
         </Border>
 
+        <TextBlock x:Name="VersionTextBlock"
+                   Margin="2,10,0,0"
+                   FontSize="11"
+                   Foreground="{DynamicResource TextSecondaryBrush}"/>
+
     </StackPanel>
 </Window>

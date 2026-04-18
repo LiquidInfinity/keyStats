@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Reflection;
 using System.Windows;
 using KeyStats.Helpers;
 
@@ -11,6 +12,7 @@ public partial class SettingsWindow : Window
     public SettingsWindow()
     {
         InitializeComponent();
+        VersionTextBlock.Text = $"\u5f53\u524d\u7248\u672c {GetDisplayVersion()}";
         Loaded += OnLoaded;
         Closed += OnClosed;
         ThemeManager.Instance.ThemeChanged += OnThemeChanged;
@@ -35,6 +37,25 @@ public partial class SettingsWindow : Window
     private void ApplyWindowBackdrop()
     {
         WindowBackdropHelper.Apply(this, NativeInterop.DwmSystemBackdropType.TransientWindow);
+    }
+
+    private static string GetDisplayVersion()
+    {
+        var assembly = typeof(App).Assembly;
+        var informationalVersion = assembly
+            .GetCustomAttribute<AssemblyInformationalVersionAttribute>()
+            ?.InformationalVersion;
+
+        if (!string.IsNullOrWhiteSpace(informationalVersion))
+        {
+            var safeVersion = informationalVersion ?? string.Empty;
+            var separatorIndex = safeVersion.IndexOf('+');
+            return separatorIndex >= 0
+                ? safeVersion.Substring(0, separatorIndex)
+                : safeVersion;
+        }
+
+        return assembly.GetName().Version?.ToString() ?? "0.0.0";
     }
 
     private void OpenStats_Click(object sender, RoutedEventArgs e)
