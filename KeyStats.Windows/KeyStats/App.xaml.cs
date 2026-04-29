@@ -64,12 +64,30 @@ public partial class App : System.Windows.Application
         {
             Console.WriteLine("KeyStats starting...");
 
-            // Ensure single instance
-            var mutex = new System.Threading.Mutex(true, "KeyStats_SingleInstance", out bool createdNew);
+            // Apply language preference BEFORE any UI loads.
+            // StatsManager.Instance triggers settings.json load on first access.
+            var preliminarySettings = StatsManager.Instance.Settings;
+            LocalizationManager.ApplyAtStartup(preliminarySettings.LanguagePreference);
+
+            // Ensure single instance — retry up to 3 attempts (500ms apart) so a
+            // language-switch relaunch doesn't lose the race against the old
+            // process's OnExit cleanup.
+            System.Threading.Mutex? mutex = null;
+            bool createdNew = false;
+            for (int attempt = 0; attempt < 3; attempt++)
+            {
+                mutex = new System.Threading.Mutex(true, "KeyStats_SingleInstance", out createdNew);
+                if (createdNew) break;
+                mutex.Dispose();
+                mutex = null;
+                System.Threading.Thread.Sleep(500);
+            }
+
             if (!createdNew)
             {
-                mutex.Dispose();
-                MessageBox.Show("按键统计已在运行中。", "按键统计", MessageBoxButton.OK, MessageBoxImage.Information);
+                MessageBox.Show(KeyStats.Properties.Strings.Error_AppAlreadyRunning,
+                                KeyStats.Properties.Strings.App_Name,
+                                MessageBoxButton.OK, MessageBoxImage.Information);
                 Shutdown();
                 return;
             }
@@ -108,7 +126,9 @@ public partial class App : System.Windows.Application
         catch (Exception ex)
         {
             Console.WriteLine($"Error during startup: {ex}");
-            MessageBox.Show($"启动错误: {ex.Message}", "按键统计错误", MessageBoxButton.OK, MessageBoxImage.Error);
+            MessageBox.Show(string.Format(KeyStats.Properties.Strings.Error_StartupFailedFormat, ex.Message),
+                            KeyStats.Properties.Strings.Error_AppErrorTitle,
+                            MessageBoxButton.OK, MessageBoxImage.Error);
             Shutdown();
         }
     }
@@ -117,7 +137,7 @@ public partial class App : System.Windows.Application
     {
         var menu = new System.Windows.Controls.ContextMenu();
 
-        var openMainWindowItem = new System.Windows.Controls.MenuItem { Header = "打开主界面" };
+        var openMainWindowItem = new System.Windows.Controls.MenuItem { Header = KeyStats.Properties.Strings.Tray_OpenMainWindow };
         openMainWindowItem.Click += (s, e) =>
         {
             TrackClick("context_menu_open_main_window");
@@ -125,7 +145,7 @@ public partial class App : System.Windows.Application
         };
         menu.Items.Add(openMainWindowItem);
 
-        var settingsItem = new System.Windows.Controls.MenuItem { Header = "设置" };
+        var settingsItem = new System.Windows.Controls.MenuItem { Header = KeyStats.Properties.Strings.Tray_Settings };
         settingsItem.Click += (s, e) =>
         {
             TrackClick("context_menu_settings");
@@ -135,7 +155,7 @@ public partial class App : System.Windows.Application
 
         var startupItem = new System.Windows.Controls.MenuItem
         {
-            Header = "开机启动",
+            Header = KeyStats.Properties.Strings.Tray_StartAtLogin,
             IsCheckable = true,
             IsChecked = StartupManager.Instance.IsEnabled
         };
@@ -158,7 +178,7 @@ public partial class App : System.Windows.Application
         };
         menu.Items.Add(startupItem);
 
-        var keyHistoryItem = new System.Windows.Controls.MenuItem { Header = "历史按键统计" };
+        var keyHistoryItem = new System.Windows.Controls.MenuItem { Header = KeyStats.Properties.Strings.Tray_KeyHistory };
         keyHistoryItem.Click += (s, e) =>
         {
             TrackClick("context_menu_key_history");
@@ -168,7 +188,7 @@ public partial class App : System.Windows.Application
 
         menu.Items.Add(new System.Windows.Controls.Separator());
 
-        var quitItem = new System.Windows.Controls.MenuItem { Header = "退出" };
+        var quitItem = new System.Windows.Controls.MenuItem { Header = KeyStats.Properties.Strings.Tray_Quit };
         quitItem.Click += (s, e) =>
         {
             TrackClick("context_menu_quit");
@@ -285,8 +305,8 @@ public partial class App : System.Windows.Application
         {
             var dialog = new SaveFileDialog
             {
-                Title = "导出数据",
-                Filter = "JSON 文件 (*.json)|*.json|所有文件 (*.*)|*.*",
+                Title = KeyStats.Properties.Strings.Dialog_ExportTitle,
+                Filter = KeyStats.Properties.Strings.Dialog_JsonFilter,
                 DefaultExt = ".json",
                 AddExtension = true,
                 FileName = MakeExportFileName()
@@ -316,8 +336,8 @@ public partial class App : System.Windows.Application
 
                 // 使用 Toast 通知显示导出成功
                 new ToastContentBuilder()
-                    .AddText("导出成功")
-                    .AddText($"数据已保存到 {Path.GetFileName(dialog.FileName)}")
+                    .AddText(KeyStats.Properties.Strings.Toast_ExportSuccess_Title)
+                    .AddText(string.Format(KeyStats.Properties.Strings.Toast_ExportSuccess_BodyFormat, Path.GetFileName(dialog.FileName)))
                     .Show();
             }
             finally
@@ -328,8 +348,8 @@ public partial class App : System.Windows.Application
         catch (Exception ex)
         {
             new ToastContentBuilder()
-                .AddText("导出失败")
-                .AddText($"无法导出数据：{ex.Message}")
+                .AddText(KeyStats.Properties.Strings.Toast_ExportFailed_Title)
+                .AddText(string.Format(KeyStats.Properties.Strings.Toast_ExportFailed_BodyFormat, ex.Message))
                 .Show();
         }
     }
@@ -346,8 +366,8 @@ public partial class App : System.Windows.Application
         {
             var dialog = new OpenFileDialog
             {
-                Title = "导入数据",
-                Filter = "JSON 文件 (*.json)|*.json|所有文件 (*.*)|*.*",
+                Title = KeyStats.Properties.Strings.Dialog_ImportTitle,
+                Filter = KeyStats.Properties.Strings.Dialog_JsonFilter,
                 DefaultExt = ".json",
                 CheckFileExists = true,
                 Multiselect = false
@@ -384,10 +404,12 @@ public partial class App : System.Windows.Application
                 var data = File.ReadAllBytes(selectedFile);
                 StatsManager.Instance.ImportStatsData(data, mode.Value);
 
-                var modeLabel = mode == StatsManager.ImportMode.Overwrite ? "覆盖" : "合并";
+                var modeLabel = mode == StatsManager.ImportMode.Overwrite
+                    ? KeyStats.Properties.Strings.ImportMode_Overwrite
+                    : KeyStats.Properties.Strings.ImportMode_Merge;
                 new ToastContentBuilder()
-                    .AddText("导入成功")
-                    .AddText($"已{modeLabel}导入统计数据：{Path.GetFileName(selectedFile)}")
+                    .AddText(KeyStats.Properties.Strings.Toast_ImportSuccess_Title)
+                    .AddText(string.Format(KeyStats.Properties.Strings.Toast_ImportSuccess_BodyFormat, modeLabel, Path.GetFileName(selectedFile)))
                     .Show();
 
                 return;
@@ -403,8 +425,8 @@ public partial class App : System.Windows.Application
         catch (Exception ex)
         {
             new ToastContentBuilder()
-                .AddText("导入失败")
-                .AddText($"无法导入数据：{ex.Message}")
+                .AddText(KeyStats.Properties.Strings.Toast_ImportFailed_Title)
+                .AddText(string.Format(KeyStats.Properties.Strings.Toast_ImportFailed_BodyFormat, ex.Message))
                 .Show();
         }
     }
@@ -476,7 +498,7 @@ public partial class App : System.Windows.Application
             shortcut.TargetPath = exePath;
             shortcut.WorkingDirectory = Path.GetDirectoryName(exePath);
             shortcut.WindowStyle = 1;
-            shortcut.Description = "KeyStats";
+            shortcut.Description = KeyStats.Properties.Strings.Shortcut_Description;
             shortcut.IconLocation = exePath;
             shortcut.Save();
         }

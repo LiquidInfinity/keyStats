@@ -1,7 +1,10 @@
 using System.Diagnostics;
+using System.Linq;
 using System.Reflection;
 using System.Windows;
+using System.Windows.Controls;
 using KeyStats.Helpers;
+using KeyStats.Services;
 
 namespace KeyStats.Views;
 
@@ -12,7 +15,7 @@ public partial class SettingsWindow : Window
     public SettingsWindow()
     {
         InitializeComponent();
-        VersionTextBlock.Text = $"\u5f53\u524d\u7248\u672c {GetDisplayVersion()}";
+        VersionTextBlock.Text = string.Format(KeyStats.Properties.Strings.Settings_VersionFormat, GetDisplayVersion());
         Loaded += OnLoaded;
         Closed += OnClosed;
         ThemeManager.Instance.ThemeChanged += OnThemeChanged;
@@ -99,7 +102,80 @@ public partial class SettingsWindow : Window
         }
         catch
         {
-            MessageBox.Show(this, "无法打开 GitHub 页面。", "KeyStats", MessageBoxButton.OK, MessageBoxImage.Information);
+            MessageBox.Show(this, KeyStats.Properties.Strings.Settings_OpenGitHubFailedMessage, KeyStats.Properties.Strings.App_Name, MessageBoxButton.OK, MessageBoxImage.Information);
         }
+    }
+
+    private bool _isInitializingLanguage = true;
+
+    private void LanguageComboBox_Loaded(object sender, RoutedEventArgs e)
+    {
+        var current = StatsManager.Instance.Settings.LanguagePreference ?? "system";
+        LanguageComboBox.SelectedItem = LanguageComboBox.Items
+            .Cast<ComboBoxItem>()
+            .FirstOrDefault(i => (string)i.Tag == current)
+            ?? LanguageComboBox.Items[0];
+        _isInitializingLanguage = false;
+    }
+
+    private void LanguageComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (_isInitializingLanguage) return;
+
+        var newPref = (string?)((ComboBoxItem?)LanguageComboBox.SelectedItem)?.Tag;
+        if (string.IsNullOrEmpty(newPref)) return;
+
+        var oldPref = StatsManager.Instance.Settings.LanguagePreference ?? "system";
+        if (newPref == oldPref) return;
+
+        var result = MessageBox.Show(
+            KeyStats.Properties.Strings.Language_RestartPromptMessage,
+            KeyStats.Properties.Strings.Language_RestartPromptTitle,
+            MessageBoxButton.OKCancel,
+            MessageBoxImage.Information);
+
+        if (result == MessageBoxResult.OK)
+        {
+            App.CurrentApp?.TrackClick("settings_language_change", new System.Collections.Generic.Dictionary<string, object?>
+            {
+                ["from"] = oldPref,
+                ["to"] = newPref,
+            });
+            StatsManager.Instance.Settings.LanguagePreference = newPref!;
+            // SaveSettings() is debounced (2s) — RestartApp would spawn the new
+            // process before the disk write happens, so it would read the old
+            // language. FlushPendingSave forces a synchronous write.
+            StatsManager.Instance.FlushPendingSave();
+            RestartApp();
+        }
+        else
+        {
+            App.CurrentApp?.TrackClick("settings_language_change_cancelled");
+            // User cancelled — revert ComboBox to the previously persisted value.
+            _isInitializingLanguage = true;
+            LanguageComboBox.SelectedItem = LanguageComboBox.Items
+                .Cast<ComboBoxItem>()
+                .FirstOrDefault(i => (string)i.Tag == oldPref);
+            _isInitializingLanguage = false;
+        }
+    }
+
+    private static void RestartApp()
+    {
+        try
+        {
+            var exePath = Process.GetCurrentProcess().MainModule?.FileName;
+            if (!string.IsNullOrEmpty(exePath))
+            {
+                Process.Start(exePath);
+            }
+        }
+        catch (System.Exception ex)
+        {
+            // If relaunch fails, the user will have to start the app manually.
+            // Log so the failure is recoverable from a bug report.
+            System.Console.WriteLine($"RestartApp: relaunch failed: {ex}");
+        }
+        Application.Current.Shutdown();
     }
 }
