@@ -97,6 +97,11 @@ class StatsPopoverViewController: NSViewController {
                 self?.updateAppearance()
             }
         }
+        HelperXPCClient.shared.addStateObserver { [weak self] _ in
+            DispatchQueue.main.async {
+                self?.updatePermissionButtonVisibility()
+            }
+        }
     }
 
     override func viewWillAppear() {
@@ -787,7 +792,11 @@ class StatsPopoverViewController: NSViewController {
     }
 
     private func updatePermissionButtonVisibility() {
-        permissionButton.isHidden = InputMonitor.shared.hasAccessibilityPermission()
+        if case .connected(_, let granted) = HelperXPCClient.shared.state {
+            permissionButton.isHidden = granted
+        } else {
+            permissionButton.isHidden = false
+        }
     }
 
     private func focusPrimaryControl() {
@@ -889,8 +898,7 @@ class StatsPopoverViewController: NSViewController {
     }
 
     @objc private func requestPermission() {
-        _ = InputMonitor.shared.checkAccessibilityPermission()
-        openAccessibilitySettings()
+        AppDelegate.shared?.requestAccessibilityPermission(analyticsSource: "popover_button")
         updatePermissionButtonVisibility()
     }
 
@@ -901,11 +909,6 @@ class StatsPopoverViewController: NSViewController {
     
     @objc private func quitApp() {
         NSApplication.shared.terminate(nil)
-    }
-
-    private func openAccessibilitySettings() {
-        let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility")!
-        NSWorkspace.shared.open(url)
     }
 
     private func showUpdatePermissionNoticeIfNeeded() -> Bool {

@@ -3,6 +3,9 @@ import PostHog
 
 @main
 class AppDelegate: NSObject, NSApplicationDelegate {
+    static var shared: AppDelegate? {
+        NSApp.delegate as? AppDelegate
+    }
 
     private var menuBarController: MenuBarController?
     private var permissionCheckTimer: Timer?
@@ -20,6 +23,10 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     func applicationDidFinishLaunching(_ aNotification: Notification) {
+        // 必须在 trackInstallIfNeeded()/MenuBarController 任何 UserDefaults 写入之前采集，
+        // 否则 fresh install 与升级用户在后续阶段已无差别。仅作为是否触发迁移提示的判据。
+        let wasPreviouslyInstalled = UserDefaults.standard.bool(forKey: analyticsInstallTrackedKey)
+
         // 初始化 PostHog
         let config = PostHogConfig(apiKey: "phc_TYyyKIfGgL1CXZx7t9dY7igE3yNwNpjj9aqItSpNVLx", host: "https://us.i.posthog.com")
         config.captureApplicationLifecycleEvents = true  // 自动采集应用生命周期事件
@@ -33,17 +40,16 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         menuBarController = MenuBarController()
         applyAppIcon()
         _ = UpdateManager.shared
-        
+
         setupWindowMenu()
 
-        // 检查并请求辅助功能权限
-        checkAndRequestPermission()
+        bootstrapHelperPipeline(wasPreviouslyInstalled: wasPreviouslyInstalled)
     }
-    
+
     func applicationWillTerminate(_ aNotification: Notification) {
         Self.trackEvent("app_exit")
-        // 停止输入监听
-        InputMonitor.shared.stopMonitoring()
+        HelperXPCClient.shared.stopMonitoring()
+        HelperXPCClient.shared.disconnect()
         permissionCheckTimer?.invalidate()
         StatsManager.shared.flushPendingSave()
     }
@@ -52,58 +58,97 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         return true
     }
     
-    // MARK: - 权限检查
-    
-    private func checkAndRequestPermission(retryCount: Int = 0) {
-        if InputMonitor.shared.hasAccessibilityPermission() {
-            // 已有权限，直接开始监听
-            InputMonitor.shared.startMonitoring()
-            promptLaunchAtLoginIfNeeded()
-        } else if retryCount < 5 {
-            // 开机启动时 TCC 服务可能还没完全初始化，快速重试几次
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { [weak self] in
-                self?.checkAndRequestPermission(retryCount: retryCount + 1)
+    // MARK: - Helper 启动
+
+    private func bootstrapHelperPipeline(wasPreviouslyInstalled: Bool) {
+        HelperXPCClient.shared.setEventSink(RemoteEventProcessor.shared)
+        DispatchQueue.global(qos: .userInitiated).async { [weak self] in
+            do {
+                try HelperSupervisor.shared.ensureInstalled()
+                NSLog("[AppDelegate] helper installed + launchd registered")
+            } catch {
+                NSLog("[AppDelegate] HelperSupervisor.ensureInstalled failed: \(error)")
             }
-        } else {
-            // Debug 启动时不主动打断开发流程，保留界面中的手动授权入口。
-            if shouldShowAccessibilityPromptOnLaunch {
-                // 重试后仍无权限，显示提示
-                showPermissionAlert()
-            } else {
-                print("开发模式启动：未授予辅助功能权限，跳过启动提示弹窗")
-            }
-
-            // 定期检查权限状态（最多5分钟）
-            permissionCheckCount = 0
-            permissionCheckTimer = Timer.scheduledTimer(withTimeInterval: 2.0, repeats: true) { [weak self] timer in
-                guard let self = self else {
-                    timer.invalidate()
-                    return
-                }
-
-                self.permissionCheckCount += 1
-
-                // 检查是否获得权限
-                if InputMonitor.shared.hasAccessibilityPermission() {
-                    timer.invalidate()
-                    self.permissionCheckTimer = nil
-                    InputMonitor.shared.startMonitoring()
-                    self.promptLaunchAtLoginIfNeeded()
-                    Self.trackEvent("permission_granted", properties: ["permission": "accessibility"])
-                    print("权限已授予，开始监听")
-                    return
-                }
-
-                // 检查是否超时（5分钟）
-                if self.permissionCheckCount >= self.maxPermissionChecks {
-                    timer.invalidate()
-                    self.permissionCheckTimer = nil
-                    print("权限检查超时（5分钟），请手动在系统设置中授予辅助功能权限后重启应用")
+            DispatchQueue.main.async {
+                Task { @MainActor in
+                    HelperMigrationPresenter.shared.showIfNeeded(wasPreviouslyInstalled: wasPreviouslyInstalled)
+                    self?.connectHelperAndStart()
                 }
             }
         }
     }
-    
+
+    private func connectHelperAndStart() {
+        HelperXPCClient.shared.connect { [weak self] state in
+            DispatchQueue.main.async {
+                guard let self = self else { return }
+                NSLog("[AppDelegate] helper xpc state = \(state)")
+                switch state {
+                case .connected(_, let granted):
+                    if granted {
+                        HelperXPCClient.shared.startMonitoring { ok, code in
+                            NSLog("[AppDelegate] helper startMonitoring ok=\(ok) code=\(code)")
+                        }
+                        self.promptLaunchAtLoginIfNeeded()
+                    } else {
+                        if self.shouldShowAccessibilityPromptOnLaunch {
+                            self.showPermissionAlert()
+                        } else {
+                            print("开发模式启动：helper 未获辅助功能授权，跳过启动提示")
+                        }
+                        self.startPermissionPolling()
+                    }
+                case .disconnected(let reason):
+                    NSLog("[AppDelegate] helper disconnected: \(reason); retry in 5s")
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 5) { [weak self] in
+                        self?.connectHelperAndStart()
+                    }
+                default:
+                    break
+                }
+            }
+        }
+    }
+
+    private func isHelperAccessibilityGranted() -> Bool {
+        if case .connected(_, let granted) = HelperXPCClient.shared.state {
+            return granted
+        }
+        return false
+    }
+
+    func requestAccessibilityPermission(analyticsSource: String) {
+        if isHelperAccessibilityGranted() {
+            handleAccessibilityPermissionGranted()
+            return
+        }
+
+        Self.trackClick("request_accessibility_permission", properties: [
+            "permission": "accessibility",
+            "source": analyticsSource
+        ])
+        // 先让 helper 调一次 AXIsProcessTrustedWithOptions，把自己写进系统设置的
+        // 辅助功能列表；再跳转到那个 pane 方便用户授权。
+        HelperXPCClient.shared.promptAccessibility { [weak self] granted in
+            DispatchQueue.main.async {
+                guard let self = self else { return }
+                if granted {
+                    self.handleAccessibilityPermissionGranted()
+                    return
+                }
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) { [weak self] in
+                    self?.openAccessibilitySettingsPane()
+                    self?.startPermissionPolling()
+                }
+            }
+        }
+    }
+
+    private func openAccessibilitySettingsPane() {
+        guard let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility") else { return }
+        NSWorkspace.shared.open(url)
+    }
+
     private func showPermissionAlert() {
         let alert = NSAlert()
         alert.messageText = NSLocalizedString("permission.title", comment: "")
@@ -120,13 +165,57 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         alert.addButton(withTitle: NSLocalizedString("permission.later", comment: ""))
 
         if alert.runModal() == .alertFirstButtonReturn {
-            openAccessibilitySettings()
-            _ = InputMonitor.shared.checkAccessibilityPermission()
+            requestAccessibilityPermission(analyticsSource: "launch_alert")
+        }
+    }
+
+    private func handleAccessibilityPermissionGranted() {
+        permissionCheckTimer?.invalidate()
+        permissionCheckTimer = nil
+        HelperXPCClient.shared.startMonitoring { ok, code in
+            NSLog("[AppDelegate] helper startMonitoring after grant ok=\(ok) code=\(code)")
+        }
+        promptLaunchAtLoginIfNeeded()
+    }
+
+    private func startPermissionPolling() {
+        permissionCheckTimer?.invalidate()
+        permissionCheckCount = 0
+        permissionCheckTimer = Timer.scheduledTimer(withTimeInterval: 2.0, repeats: true) { [weak self] timer in
+            guard let self = self else {
+                timer.invalidate()
+                return
+            }
+
+            self.permissionCheckCount += 1
+
+            // 每次 poll 都重新握手，以便读 helper 的最新授权状态
+            HelperXPCClient.shared.refreshState { state in
+                DispatchQueue.main.async {
+                    if case .connected(_, let granted) = state, granted {
+                        timer.invalidate()
+                        self.permissionCheckTimer = nil
+                        self.handleAccessibilityPermissionGranted()
+                        Self.trackEvent("permission_granted", properties: ["permission": "accessibility"])
+                        print("权限已授予，helper 开始监听")
+                    }
+                }
+            }
+
+            if self.permissionCheckCount >= self.maxPermissionChecks {
+                timer.invalidate()
+                self.permissionCheckTimer = nil
+                print("权限检查超时（5分钟），请手动在系统设置中授予 KeyStatsHelper 辅助功能权限")
+            }
+        }
+
+        if let permissionCheckTimer {
+            RunLoop.main.add(permissionCheckTimer, forMode: .common)
         }
     }
 
     private func promptLaunchAtLoginIfNeeded() {
-        guard InputMonitor.shared.hasAccessibilityPermission() else { return }
+        guard isHelperAccessibilityGranted() else { return }
         let defaults = UserDefaults.standard
         guard !defaults.bool(forKey: launchAtLoginPromptedKey) else { return }
         defaults.set(true, forKey: launchAtLoginPromptedKey)
@@ -160,11 +249,6 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         alert.runModal()
     }
     
-    private func openAccessibilitySettings() {
-        let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility")!
-        NSWorkspace.shared.open(url)
-    }
-
     private func makeRoundedAlertIcon(from image: NSImage) -> NSImage {
         let targetSize: CGFloat = 64
         let rect = NSRect(x: 0, y: 0, width: targetSize, height: targetSize)

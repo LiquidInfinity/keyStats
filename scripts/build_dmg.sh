@@ -25,6 +25,10 @@ echo "🧹 清理旧的构建..."
 rm -rf "$BUILD_DIR"
 mkdir -p "$DMG_DIR" "$OUTPUT_DIR"
 
+# Fail fast: 校验 vendor 里的 helper 跟 cdhash.txt 一致
+echo "🔍 校验 vendored helper..."
+"$SCRIPT_DIR/check_vendored_helper.sh"
+
 # 构建 Release 版本
 echo "🔨 构建 Release 版本..."
 xcodebuild -project "$PROJECT" \
@@ -55,17 +59,12 @@ if [ ! -d "$APP_PATH" ]; then
     exit 1
 fi
 
-# 复制到 DMG 目录
+# 复制到 DMG 目录，再用 vendor/ 里预先签好的 helper 覆盖 Xcode 嵌入的那个
 cp -R "$APP_PATH" "$DMG_DIR/"
+"$SCRIPT_DIR/embed_vendored_helper.sh" "$DMG_DIR/$APP_NAME.app"
 
-# Ad-hoc 签名（重要：确保辅助功能权限正常工作）
 echo "🔏 签名应用..."
-ENTITLEMENTS="$PROJECT_DIR/KeyStats/KeyStats.entitlements"
-if [ -f "$ENTITLEMENTS" ]; then
-    codesign --force --deep --sign - --entitlements "$ENTITLEMENTS" "$DMG_DIR/$APP_NAME.app"
-else
-    codesign --force --deep --sign - "$DMG_DIR/$APP_NAME.app"
-fi
+"$SCRIPT_DIR/sign_app.sh" "$DMG_DIR/$APP_NAME.app"
 
 # 创建 Applications 文件夹的符号链接
 ln -s /Applications "$DMG_DIR/Applications"
