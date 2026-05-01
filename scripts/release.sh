@@ -23,14 +23,14 @@ cd "$PROJECT_DIR"
 
 echo "Release $TAG"
 
-current_build=$(perl -ne 'if (/CURRENT_PROJECT_VERSION = ([0-9]+);/) { print $1; exit }' "$PBXPROJ")
+current_build=$(perl -0ne 'if (/CURRENT_PROJECT_VERSION = ([0-9]+);\s*\n\s*DEVELOPMENT_TEAM = 228XJY7Z32;/) { print $1; exit }' "$PBXPROJ")
 if [[ -z "${current_build:-}" ]]; then
-    echo "Error: unable to read CURRENT_PROJECT_VERSION from $PBXPROJ"
+    echo "Error: unable to read main-app CURRENT_PROJECT_VERSION from $PBXPROJ"
     exit 1
 fi
 
 new_build=$((current_build + 1))
-perl -0pi -e "s/CURRENT_PROJECT_VERSION = [0-9]+;/CURRENT_PROJECT_VERSION = ${new_build};/g; s/MARKETING_VERSION = [^;]+;/MARKETING_VERSION = ${VERSION};/g" "$PBXPROJ"
+perl -0pi -e "s/CURRENT_PROJECT_VERSION = [0-9]+;(\s*\n\s*DEVELOPMENT_TEAM = 228XJY7Z32;)/CURRENT_PROJECT_VERSION = ${new_build};\$1/g; s/MARKETING_VERSION = [^;]+;/MARKETING_VERSION = ${VERSION};/g" "$PBXPROJ"
 perl -0pi -e "s#<Version>[^<]+</Version>#<Version>${VERSION}</Version>#g" "$WINDOWS_CSPROJ"
 echo "Set MARKETING_VERSION=$VERSION, CURRENT_PROJECT_VERSION=$new_build, Windows Version=$VERSION"
 
